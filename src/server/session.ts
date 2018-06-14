@@ -250,7 +250,16 @@ export class Session extends EventEmitter {
     }
 
     private getPacketType(packet: StandardPacket) {
-        if (packet.t) { // Handle Heartbeat & Acknowledgement
+        if (packet.r) { // Handle request/response control
+            if (typeof packet.r === 'number') { // Incrementing number indicates a request from the client
+                return PacketType.Request;
+            } else if (typeof packet.r === 'string') { // Random string originates from the server's request
+                return PacketType.Response;
+            } else {
+                // Do a throw and handle it somehow and emit some kind of event
+                return; // Invalid packet
+            }
+        } else if (packet.t) { // Handle Heartbeat & Acknowledgement
             switch (packet.t) {
                 case 'hb': // Client sends heartbeat to server
                     return PacketType.Heartbeat;
@@ -262,14 +271,6 @@ export class Session extends EventEmitter {
                     return PacketType.HeartbeatTransmit;
                 default: // Client acknowledges a response from the server
                     return PacketType.Acknowledgement;
-            }
-        } else if (packet.r) { // Handle request/response control
-            if (typeof packet.r === 'number') { // Incrementing number indicates a request from the client
-                return PacketType.Request;
-            } else if (typeof packet.r === 'string') { // Random string originates from the server's request
-                return PacketType.Response;
-            } else {
-                return; // Invalid packet
             }
         } else { // Handle simple messages from the client
             return PacketType.Message; // Simple message from the client
@@ -327,6 +328,7 @@ export class Session extends EventEmitter {
             if (onAcknowledge) {
                 const acknowledgementId: string = ObjectId();
                 response.t = acknowledgementId;
+                if (!connection.rpcTransactions) connection.rpcTransactions = {};
                 connection.rpcTransactions[acknowledgementId] = {
                     callback: (response: any, error?: any) => {
                         // Clear and delete rpc
@@ -417,6 +419,7 @@ export class Session extends EventEmitter {
         this.awaitReady(connection, () => {
             connection.send(JSON.stringify(packet));
 
+            if (!connection.rpcTransactions) connection.rpcTransactions = {};
             connection.rpcTransactions[requestId] = {
                 callback: (response: any, error: any) => {
                     // Clear and delete rpc
