@@ -1,1 +1,2 @@
-export *  from './transport';
+import 'source-map-support/register';
+export *  from './access';

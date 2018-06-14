@@ -1,5 +1,3 @@
-import 'source-map-support/register';
-// import * as events from 'events';
 import * as nodeWs from './node';
 
 export enum Type {
@@ -12,6 +10,17 @@ export enum ReadyState {
     Open,
     Closing,
     Closed
+}
+
+export enum StatusCode {
+    Normal_Closure = 1000,
+    Going_Away,
+    Protocol_Error,
+    Unexpected_Data,
+    Invalid_Data = 1007,
+    Message_Error,
+    Message_Too_Large,
+    Unexpected_Error = 1011
 }
 
 export class UniversalWs {
