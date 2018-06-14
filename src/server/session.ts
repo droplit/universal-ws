@@ -9,15 +9,15 @@ export interface WsContext<Context = any> extends WebSocket {
     context: Context;
     lastHeartbeat: Date;
     waiting: (() => void)[];
-    acknowledgements: {
-        [ackId: string]: {
+    rpcTransactions: {
+        [transactionId: string]: {
             timer: any;
-            callback: (response: any, error: any) => Promise<any>;
+            callback: (response: any, error?: any) => void;
         }
     };
     pollRate: number;
     timeout: number;
-    heartbeatRequests: any[];
+    expires: any;
 }
 
 export interface StandardPacket {
@@ -26,6 +26,28 @@ export interface StandardPacket {
     d: any;
     r?: boolean | string;
     i: string;
+}
+
+export interface RequestPacket {
+    m: string;
+    d: any;
+    r: number;
+}
+
+export interface ResponsePacket {
+    d: any;
+    r: string;
+}
+
+enum PacketType {
+    Heartbeat,
+    HeartbeatRequest,
+    HeartbeatReceive,
+    HeartbeatTransmit,
+    Message,
+    Request,
+    Response,
+    Acknowledgement
 }
 
 export class Session extends EventEmitter {
@@ -40,13 +62,14 @@ export class Session extends EventEmitter {
     constructor(
         server: http.Server,
         authenticator?: (connection: WsContext) => Promise<boolean>,
+        perMessageDeflate?: WebSocket.PerMessageDeflateOptions,
         options?: {
             pollRate?: number | { minimum: number, maximum: number },
             timeout?: number | { minimum: number, maximum: number },
             conserveBandwidth: boolean;
         }) {
         super();
-        this.transport = new Transport(server);
+        this.transport = new Transport(server, perMessageDeflate);
         if (options) {
             if (options.pollRate) {
                 if (typeof options.pollRate === 'number') {
@@ -103,6 +126,11 @@ export class Session extends EventEmitter {
 
         this.transport.on('connection', (connection: WsContext) => {
             this.emit('connection', connection);
+            connection.timeout = 60000;
+            connection.pollRate = this.conserveBandwidth ? this.pollRate.minimum : this.pollRate.maximum;
+            connection.expires = setTimeout(() => {
+                this.onConnectionInactive(connection);
+            }, connection.timeout);
             if (authenticator) {
                 this.authenticator = authenticator;
                 authenticator(connection)
@@ -174,36 +202,11 @@ export class Session extends EventEmitter {
     }
 
     private renewHeartbeat(connection: WsContext) {
-        connection.heartbeatRequests.forEach((hrq) => {
-            clearTimeout(connection.heartbeatRequests.pop());
-        });
+        clearTimeout(connection.expires);
+        connection.expires = setTimeout(() => {
+            this.onConnectionInactive(connection);
+        }, connection.timeout);
         connection.lastHeartbeat = new Date();
-    }
-
-    private expireConnections() {
-        this.connections.forEach((connection) => {
-            const difference = Math.abs(new Date().valueOf() - connection.lastHeartbeat.valueOf());
-            if (difference > this.timeout) {
-                this.onConnectionInactive(connection);
-            }
-        });
-    }
-
-    private negotiateHbrx(connection: WsContext, message: 'p' | 't' | string, data: { min: number, max: number }) {
-        if (message === 'p') {
-            // Client requests server to adjust polling rate
-            if (this.conserveBandwidth) {
-                // Set the connection to the highest 
-                connection.pollRate = Math.min(connection.timeout, Math.max(this.pollRate.maximum, data.max));
-                if (connection.pollRate > Math.max(data.max, ))
-            } else {
-
-            }
-        } else if (message === 't') {
-            // Client requests to adjust client timeout
-        } else {
-            // Invalid hbrx message
-        }
     }
 
     private onMessage(connection: WsContext, message: any) {
@@ -230,62 +233,152 @@ export class Session extends EventEmitter {
                 throw new Error('Invalid packet');
             }
 
-            // Handle Heartbeat is this necessary due to above onConnectionActive
-            switch (packet.t) {
-                case 'hb':
+            switch (this.getPacketType(packet)) {
+                case PacketType.Heartbeat: // Heartbeat from client, already handled by onConnectionActive
+                    this.handleHeartbeat(connection, packet);
                     break;
-                case 'hbr': // Client requests a heartbeat from the server
-                    connection.send(JSON.stringify({ t: 'hb' }));
+                case PacketType.HeartbeatRequest:
+                    this.handleHeartbeatRequest(connection, packet);
                     break;
-                case 'hbrx': // Client requests a change in server polling rate or client timeout
-                    this.negotiateHbrx(connection, packet.m as string, packet.d);
-                case 'hbtx': // Client requests a change in client polling rate or server timeout
-                    this.negotiateHbtx(connection, packet.m, packet.d);
-                default: break;
-            }
-
-            if (packet.r === undefined) {
-                // Handle message
-                this.emit('message', packet.m, packet.i, packet.d, connection.context, (result: any) => {
-                    // Done
-                });
-            } else if (packet.r === true) {
-                // Handle request expecting a response
-                this.emit('request', packet.m, packet.i, packet.d, connection.context, (result: any, expectAcknowledgement: boolean = false, timeout: number = 5000) => {
-                    const response: Partial<StandardPacket> = {
-                        m: JSON.stringify(packet.m),
-                        d: result,
-                        r: JSON.stringify(packet.i)
-                    };
-                    if (expectAcknowledgement) {
-                        const ackId: string = ObjectId();
-                        response.t = ackId;
-                        connection.acknowledgements[ackId] = {
-                            callback: (response: any, error: any) => {
-                                if (error) {
-                                    return Promise.reject(error);
-                                } else {
-                                    return Promise.resolve(response);
-                                }
-                            },
-                            timer: setTimeout(() => {
-                                // Timed out in acknowledging response
-                                clearTimeout(connection.acknowledgements[ackId].timer);
-                                connection.acknowledgements[ackId].callback(undefined, 'Acknowledgement timed out');
-                                delete connection.acknowledgements[ackId];
-                            }, timeout)
-                        };
-                    } else {
-                        return Promise.resolve();
-                    }
-
-                    connection.send(JSON.stringify(response));
-                });
+                case PacketType.HeartbeatReceive:
+                    this.handleHeartbeatReceive(connection, packet);
+                    break;
+                case PacketType.HeartbeatTransmit:
+                    this.handleHeartbeatTransmit(connection, packet);
+                    break;
+                case PacketType.Message:
+                    this.handleMessage(connection, packet);
+                case PacketType.Request:
+                    this.handleRequest(connection, packet);
+                    break;
+                case PacketType.Response:
+                    this.handleResponse(connection, packet);
+                    break;
+                case PacketType.Acknowledgement:
+                    this.handleAcknowledgement(connection, packet);
+                default:
+                    throw new Error('Invalid packet received');
             }
         });
     }
 
-    public requestAuthentication(connection: WsContext) {
+    private getPacketType(packet: StandardPacket) {
+        if (packet.t) { // Handle Heartbeat & Acknowledgement
+            switch (packet.t) {
+                case 'hb': // Client sends heartbeat to server
+                    return PacketType.Heartbeat;
+                case 'hbr': // Client requests a heartbeat from the server
+                    return PacketType.HeartbeatRequest;
+                case 'hbrx': // Client requests a change in server polling rate or client timeout
+                    return PacketType.HeartbeatReceive;
+                case 'hbtx': // Client requests a change in client polling rate or server timeout
+                    return PacketType.HeartbeatTransmit;
+                default: // Client acknowledges a response from the server
+                    return PacketType.Acknowledgement;
+            }
+        } else if (packet.r) { // Handle request/response control
+            if (typeof packet.r === 'number') { // Incrementing number indicates a request from the client
+                return PacketType.Request;
+            } else if (typeof packet.r === 'string') { // Random string originates from the server's request
+                return PacketType.Response;
+            } else {
+                return; // Invalid packet
+            }
+        } else { // Handle simple messages from the client
+            return PacketType.Message; // Simple message from the client
+        }
+    }
+
+    private handleHeartbeat(connection: WsContext, packet: Partial<StandardPacket>) {
+        this.emit('heartbeat', connection.context);
+    }
+
+    private handleHeartbeatRequest(connection: WsContext, packet: Partial<StandardPacket>) {
+        connection.send(JSON.stringify({ t: 'hb' }));
+    }
+
+    private handleHeartbeatReceive(connection: WsContext, packet: Partial<StandardPacket>) {
+        switch (packet.m) {
+            case 'p': // Client requests server to adjust polling rate
+            case 't': // Client requests to adjust client timeout
+            default: // Invalid hbrx message
+        }
+        // negotiateHbrx(connection: WsContext, message: 'p' | 't' | string, data: { min: number, max: number }) {
+        //     if (message === 'p') {
+        //         // Client requests server to adjust polling rate
+        //         if (this.conserveBandwidth) {
+        //             // Set the connection to the highest
+        //             connection.pollRate = Math.min(connection.timeout, Math.max(this.pollRate.maximum, data.max));
+        //             // if (connection.pollRate > Math.max(data.max, ))
+        //         } else {
+
+        //         }
+        //     } else if (message === 't') {
+        //         // Client requests to adjust client timeout
+        //     } else {
+        //         // Invalid hbrx message
+        //     }
+        // }
+    }
+
+    private handleHeartbeatTransmit(connection: WsContext, packet: Partial<StandardPacket>) {
+
+    }
+
+    private handleMessage(connection: WsContext, packet: Partial<StandardPacket>) {
+        this.emit(`@${packet.m}`, packet.i, packet.d, connection.context, (result: any) => { });
+    }
+
+    private handleRequest(connection: WsContext, packet: Partial<StandardPacket>) {
+        // Handle request expecting a response
+        this.emit(`#${packet.m}`, packet.r, packet.d, connection.context, (result: any, timeout: number = 5000, onAcknowledge?: (response: any, error?: any) => void) => {
+            const response: Partial<StandardPacket> = {
+                m: JSON.stringify(packet.m),
+                d: result,
+                r: JSON.stringify(packet.i)
+            };
+            if (onAcknowledge) {
+                const acknowledgementId: string = ObjectId();
+                response.t = acknowledgementId;
+                connection.rpcTransactions[acknowledgementId] = {
+                    callback: (response: any, error?: any) => {
+                        // Clear and delete rpc
+                        clearTimeout(connection.rpcTransactions[acknowledgementId].timer);
+                        delete connection.rpcTransactions[acknowledgementId];
+                        if (error) {
+                            onAcknowledge(undefined, error);
+                        } else {
+                            onAcknowledge(response);
+                        }
+                    },
+                    timer: setTimeout(() => {
+                        // Timed out in acknowledging response
+                        connection.rpcTransactions[acknowledgementId].callback(undefined, 'Acknowledgement timed out');
+                    }, timeout)
+                };
+            } else {
+                return Promise.resolve();
+            }
+
+            connection.send(JSON.stringify(response));
+        });
+    }
+
+    private handleResponse(connection: WsContext, packet: Partial<StandardPacket>) {
+        if (typeof packet.r !== 'string') return;
+        if (connection.rpcTransactions[packet.r]) {
+            connection.rpcTransactions[packet.r].callback(packet.d);
+        }
+    }
+
+    private handleAcknowledgement(connection: WsContext, packet: Partial<StandardPacket>) {
+        if (typeof packet.t !== 'string') return;
+        if (connection.rpcTransactions[packet.t]) {
+            connection.rpcTransactions[packet.t].callback(undefined);
+        }
+    }
+
+    public requestAuthentication(connection: WsContext, onAuthenticated: (error?: any) => void) {
         if (this.authenticator) {
             this.authenticator(connection)
                 .then((result) => {
@@ -293,15 +386,65 @@ export class Session extends EventEmitter {
                         this.onConnectionActive(connection);
                         this.connectionReady(connection);
                         this.emit('authenticated', connection);
+                        onAuthenticated();
+                    } else {
+                        this.onConnectionInactive(connection);
+                        onAuthenticated('Failed to authenticate');
                     }
                 })
                 .catch((error) => {
-                    this.emit('disconnected', connection);
+                    this.onConnectionInactive(connection);
+                    onAuthenticated('Failed to authenticate');
                 });
         } else {
+            onAuthenticated();
             this.emit('authenticated', connection);
 
         }
+    }
+
+    public sendMessage(connection: WsContext, message: string, data?: any) {
+        const packet: Partial<StandardPacket> = {
+            m: message
+        };
+        if (data) {
+            packet.d = data;
+        }
+        this.awaitReady(connection, () => {
+            connection.send(JSON.stringify(packet));
+        });
+    }
+
+    public sendRequest(connection: WsContext, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
+        const requestId: string = ObjectId();
+        const packet: Partial<StandardPacket> = {
+            // m: message,
+            d: data,
+            r: message,
+            i: requestId
+        };
+
+        this.awaitReady(connection, () => {
+            connection.send(JSON.stringify(packet));
+
+            connection.rpcTransactions[requestId] = {
+                callback: (response: any, error: any) => {
+                    // Clear and delete rpc
+                    clearTimeout(connection.rpcTransactions[requestId].timer);
+                    delete connection.rpcTransactions[requestId];
+                    if (error) {
+                        callback(undefined, error);
+                    } else {
+                        callback(response);
+                    }
+                },
+                timer: setTimeout(() => {
+                    // Timed out in acknowledging response
+                    connection.rpcTransactions[requestId].callback(undefined, 'No response from client connection. Request timed out');
+                }, connection.timeout)
+            };
+
+        });
     }
 
 }
