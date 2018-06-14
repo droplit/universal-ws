@@ -117,11 +117,7 @@ export class Session extends EventEmitter {
                     throw new Error('Timeout must be a positive integer or an object containing minimum or maximum positive integers');
                 }
             }
-            if (options.conserveBandwidth) {
-                this.conserveBandwidth = true;
-            } else {
-                this.conserveBandwidth = false;
-            }
+            this.conserveBandwidth = options.conserveBandwidth ? true : false;
         }
 
         this.transport.on('connection', (connection: WsContext) => {
@@ -367,6 +363,9 @@ export class Session extends EventEmitter {
     private handleResponse(connection: WsContext, packet: Partial<StandardPacket>) {
         if (typeof packet.r !== 'string') return;
         if (connection.rpcTransactions[packet.r]) {
+            if (packet.t) { // Client expects acknowledgement of response
+                connection.send(JSON.stringify({ t: packet.t }));
+            }
             connection.rpcTransactions[packet.r].callback(packet.d);
         }
     }
@@ -415,7 +414,7 @@ export class Session extends EventEmitter {
         });
     }
 
-    public sendRequest(connection: WsContext, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
+    public makeRequest(connection: WsContext, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
         const requestId: string = ObjectId();
         const packet: Partial<StandardPacket> = {
             // m: message,
