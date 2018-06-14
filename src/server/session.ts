@@ -30,17 +30,6 @@ export interface StandardPacket {
     i: string;
 }
 
-export interface RequestPacket {
-    m: string;
-    d: any;
-    r: number;
-}
-
-export interface ResponsePacket {
-    d: any;
-    r: string;
-}
-
 enum PacketType {
     Heartbeat,
     HeartbeatRequest,
@@ -419,10 +408,10 @@ export class Session extends EventEmitter {
     public makeRequest(connection: WsContext, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
         const requestId: string = ObjectId();
         const packet: Partial<StandardPacket> = {
-            // m: message,
+            m: message,
             d: data,
-            r: message,
-            i: requestId
+            // r: message,
+            r: requestId
         };
 
         this.awaitReady(connection, () => {
