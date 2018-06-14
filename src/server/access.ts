@@ -1,12 +1,12 @@
 import { EventEmitter } from 'events';
 import { Session, WsContext, StatusCode } from './session';
-import * as http from 'http';
+import { Server } from 'http';
 
 export class Access extends EventEmitter {
 
     private session: Session;
 
-    constructor(server: http.Server, authenticator?: (connection: WsContext) => Promise<boolean>) {
+    constructor(server: Server, authenticator?: (connection: WsContext) => Promise<boolean>) {
         super();
         this.session = new Session(server, authenticator);
         this.session.on('connection', this.connection);
@@ -56,7 +56,7 @@ export class Access extends EventEmitter {
         this.session.makeRequest(connection, message, data, callback);
     }
 
-    public disconnect(connection: WsContext, code: StatusCode, message?: string) {
+    public close(connection: WsContext, code: StatusCode, message?: string) {
         this.session.close(connection, code, message);
     }
 }
