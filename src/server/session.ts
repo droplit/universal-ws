@@ -1,9 +1,11 @@
 import { EventEmitter } from 'events';
 import * as http from 'http';
-import { Transport } from './transport';
+import { Transport, StatusCode } from './transport';
 import * as WebSocket from 'ws';
 
 const ObjectId = require('bson-objectid');
+
+export { StatusCode } from './transport';
 
 export interface WsContext<Context = any> extends WebSocket {
     context: Context;
@@ -444,6 +446,10 @@ export class Session extends EventEmitter {
             };
 
         });
+    }
+
+    public close(connection: WsContext, code: StatusCode, message?: string) {
+        this.transport.close(connection, code, message);
     }
 
 }

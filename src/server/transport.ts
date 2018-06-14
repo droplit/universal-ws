@@ -2,6 +2,17 @@ import { EventEmitter } from 'events';
 import { Server } from 'http';
 import * as WebSocket from 'ws';
 
+export enum StatusCode {
+    Normal_Closure = 1000,
+    Going_Away,
+    Protocol_Error,
+    Unexpected_Data,
+    Invalid_Data = 1007,
+    Message_Error,
+    Message_Too_Large,
+    Unexpected_Error = 1011
+}
+
 export class Transport extends EventEmitter {
     private wss: WebSocket.Server;
 
@@ -31,5 +42,9 @@ export class Transport extends EventEmitter {
 
     public send(connection: WebSocket, message: string, callback: (error: Error) => void | undefined) {
         connection.send(message, callback);
+    }
+
+    public close(connection: WebSocket, code: StatusCode, message?: string) {
+        connection.close(code, message);
     }
 }

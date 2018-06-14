@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Session, WsContext } from './session';
+import { Session, WsContext, StatusCode } from './session';
 import * as http from 'http';
 
 export class Access extends EventEmitter {
@@ -54,5 +54,9 @@ export class Access extends EventEmitter {
 
     public makeRequest(connection: WsContext, message: string, data: any, callback: (response: any, error?: any) => void) {
         this.session.makeRequest(connection, message, data, callback);
+    }
+
+    public disconnect(connection: WsContext, code: StatusCode, message?: string) {
+        this.session.close(connection, code, message);
     }
 }
