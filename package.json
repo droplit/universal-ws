@@ -19,6 +19,7 @@
   "devDependencies": {
     "@types/debug": "0.0.30",
     "@types/node": "^10.1.2",
+    "@types/retry": "^0.10.2",
     "@types/ws": "^5.1.1",
     "rimraf": "^2.6.2",
     "tslint": "^5.10.0",
