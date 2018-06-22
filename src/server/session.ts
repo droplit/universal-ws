@@ -122,11 +122,15 @@ export class Session extends EventEmitter {
                 this.authenticator = authenticator;
                 authenticator(connection)
                     .then((result) => {
-
-                        this.onConnectionActive(connection);
-                        this.connectionReady(connection);
-                        this.connections.push(connection);
-                        this.emit('connected', connection);
+                        if (result) {
+                            this.onConnectionActive(connection);
+                            this.connectionReady(connection);
+                            this.connections.push(connection);
+                            this.emit('connected', connection);
+                        } else {
+                            this.emit('disconnected', connection);
+                            connection.close(1008, JSON.stringify({ code: 1008, reason: 'auth' }));
+                        }
                     })
                     .catch((error) => {
                         this.emit('disconnected', connection);
