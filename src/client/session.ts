@@ -119,7 +119,13 @@ export class Session extends EventEmitter {
 
     private retryConnect(onConnected?: (connected: boolean) => void) {
         this.connectOperation.attempt((currentAttempt: number) => {
-            this.restart(onConnected);
+            this.restart((connected: boolean, error?: any) => {
+                if (this.connectOperation.retry(error)) {
+                    return;
+                }
+
+                if (onConnected) onConnected(connected);
+            });
         });
     }
 
@@ -140,7 +146,7 @@ export class Session extends EventEmitter {
             });
         } catch (error) {
             // Throw error connecting?
-            throw new Error(`Could not connect to host`);
+            throw new Error(`Could not connect to host: ${error}`);
         }
     }
 

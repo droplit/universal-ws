@@ -52,9 +52,9 @@ export class Access extends EventEmitter {
     }
 
     // Add a handler for a message
-    public onMessage(message: string, handler: (id: string, data: any, context: any) => void) {
-        this.session.on(`@${message}`, (id, data, context) => {
-            handler(id, data, context);
+    public onMessage(message: string, handler: (data: any) => void) {
+        this.session.on(`@${message}`, (data) => {
+            handler(data);
         });
     }
 

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { Session, WsContext, StatusCode } from './session';
 import { Server } from 'http';
 
+export { WsContext } from './session';
 export class Access extends EventEmitter {
 
     private session: Session;
@@ -9,9 +10,9 @@ export class Access extends EventEmitter {
     constructor(server: Server, authenticator?: (connection: WsContext) => Promise<boolean>) {
         super();
         this.session = new Session(server, authenticator);
-        this.session.on('connection', this.connection);
-        this.session.on('connected', this.connected);
-        this.session.on('close', this.disconnected);
+        this.session.on('connection', this.connection.bind(this));
+        this.session.on('connected', this.connected.bind(this));
+        this.session.on('close', this.disconnected.bind(this));
     }
 
     // A new connection that is yet to be authenticated nor established

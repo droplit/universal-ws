@@ -161,6 +161,7 @@ export class Session extends EventEmitter {
     }
 
     private connectionReady(connection: WsContext) {
+        connection.context = {};
         if (connection.waiting) {
             connection.waiting.forEach((callback) => {
                 process.nextTick(callback);
