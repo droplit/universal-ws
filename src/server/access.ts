@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { Session, WsContext, StatusCode } from './session';
 import { Server } from 'http';
 
-export { WsContext } from './session';
+export { WsContext, StatusCode } from './session';
 export class Access extends EventEmitter {
 
     private session: Session;
