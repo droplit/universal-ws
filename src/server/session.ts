@@ -6,11 +6,16 @@ import * as WebSocket from 'ws';
 const ObjectId = require('bson-objectid');
 
 export { StatusCode } from './transport';
+export { PerMessageDeflateOptions } from 'ws';
 
+export interface WsOptions {
+    pollRate?: number | { minimum: number, maximum: number };
+    timeout?: number | { minimum: number, maximum: number };
+    conserveBandwidth: boolean;
+}
 export interface WsContext<Context = any> extends WebSocket {
-    context: Context;
+    context?: Context;
     lastHeartbeat: Date;
-    // waiting: (() => void)[];
     rpcTransactions: {
         [transactionId: string]: {
             timer: any;
@@ -41,24 +46,20 @@ enum PacketType {
     Acknowledgement
 }
 
-export class Session extends EventEmitter {
+export class Session<Context = any> extends EventEmitter {
 
     private transport: Transport;
-    private authenticator?: (connection: WsContext) => Promise<boolean>;
+    private authenticator?: (connection: WsContext<Context>) => Promise<boolean>;
     private pollRate = { minimum: 1000, maximum: 10000 };
     private timeout = { minimum: 20000, maximum: 60000 };
     private conserveBandwidth = false;
-    public connections: WsContext[] = [];
+    public connections: WsContext<Context>[] = [];
 
     constructor(
         server: http.Server,
-        authenticator?: (connection: WsContext) => Promise<boolean>,
+        authenticator?: (connection: WsContext<Context>) => Promise<boolean>,
         perMessageDeflate?: WebSocket.PerMessageDeflateOptions,
-        options?: {
-            pollRate?: number | { minimum: number, maximum: number },
-            timeout?: number | { minimum: number, maximum: number },
-            conserveBandwidth: boolean;
-        }) {
+        options?: WsOptions) {
         super();
         this.transport = new Transport(server, perMessageDeflate);
         if (options) {
@@ -111,7 +112,7 @@ export class Session extends EventEmitter {
             this.conserveBandwidth = options.conserveBandwidth ? true : false;
         }
 
-        this.transport.on('connection', (connection: WsContext) => {
+        this.transport.on('connection', (connection: WsContext<Context>) => {
             this.emit('connection', connection);
             connection.timeout = 60000;
             connection.pollRate = this.conserveBandwidth ? this.pollRate.minimum : this.pollRate.maximum;
@@ -150,16 +151,16 @@ export class Session extends EventEmitter {
             });
         });
 
-        this.transport.on('close', (connection: WsContext, code: number, message: string) => {
+        this.transport.on('close', (connection: WsContext<Context>, code: number, message: string) => {
             this.emit('close', connection, code, message);
         });
     }
 
-    private connectionReady(connection: WsContext) {
-        connection.context = {};
+    private connectionReady(connection: WsContext<Context>) {
+        connection.context = <Context>{};
     }
 
-    private onConnectionActive(connection: WsContext) {
+    private onConnectionActive(connection: WsContext<Context>) {
         if (!connection.context) {
             return;
         } else {
@@ -167,7 +168,7 @@ export class Session extends EventEmitter {
         }
     }
 
-    private onConnectionInactive(connection: WsContext) {
+    private onConnectionInactive(connection: WsContext<Context>) {
         const index = this.connections.indexOf(connection);
         if (index > -1) {
             this.connections.splice(index, 1);
@@ -178,7 +179,7 @@ export class Session extends EventEmitter {
         }
     }
 
-    private renewHeartbeat(connection: WsContext) {
+    private renewHeartbeat(connection: WsContext<Context>) {
         clearTimeout(connection.expires);
         connection.expires = setTimeout(() => {
             this.onConnectionInactive(connection);
@@ -186,7 +187,7 @@ export class Session extends EventEmitter {
         connection.lastHeartbeat = new Date();
     }
 
-    private onMessage(connection: WsContext, message: any) {
+    private onMessage(connection: WsContext<Context>, message: any) {
         this.onConnectionActive(connection);
 
         // Empty message
@@ -265,21 +266,21 @@ export class Session extends EventEmitter {
         }
     }
 
-    private handleHeartbeat(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleHeartbeat(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         this.emit('heartbeat', connection.context);
     }
 
-    private handleHeartbeatRequest(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleHeartbeatRequest(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         connection.send(JSON.stringify({ t: 'hb' }));
     }
 
-    private handleHeartbeatReceive(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleHeartbeatReceive(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         switch (packet.m) {
             case 'p': // Client requests server to adjust polling rate
             case 't': // Client requests to adjust client timeout
             default: // Invalid hbrx message
         }
-        // negotiateHbrx(connection: WsContext, message: 'p' | 't' | string, data: { min: number, max: number }) {
+        // negotiateHbrx(connection: WsContext<Context>, message: 'p' | 't' | string, data: { min: number, max: number }) {
         //     if (message === 'p') {
         //         // Client requests server to adjust polling rate
         //         if (this.conserveBandwidth) {
@@ -297,15 +298,15 @@ export class Session extends EventEmitter {
         // }
     }
 
-    private handleHeartbeatTransmit(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleHeartbeatTransmit(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
 
     }
 
-    private handleMessage(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleMessage(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         this.emit(`@${packet.m}`, packet.i, packet.d, connection.context, (result: any) => { });
     }
 
-    private handleRequest(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleRequest(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         // Handle request expecting a response
         this.emit(`#${packet.m}`, packet.r, packet.d, connection.context, (result: any, timeout: number = 5000, onAcknowledge?: (response: any, error?: any) => void) => {
             const response: Partial<StandardPacket> = {
@@ -341,7 +342,7 @@ export class Session extends EventEmitter {
         });
     }
 
-    private handleResponse(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleResponse(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         if (typeof packet.r !== 'string') return;
         if (connection.rpcTransactions[packet.r]) {
             if (packet.t) { // Client expects acknowledgement of response
@@ -351,14 +352,14 @@ export class Session extends EventEmitter {
         }
     }
 
-    private handleAcknowledgement(connection: WsContext, packet: Partial<StandardPacket>) {
+    private handleAcknowledgement(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
         if (typeof packet.t !== 'string') return;
         if (connection.rpcTransactions[packet.t]) {
             connection.rpcTransactions[packet.t].callback(undefined);
         }
     }
 
-    public requestAuthentication(connection: WsContext, onAuthenticated: (error?: any) => void) {
+    public requestAuthentication(connection: WsContext<Context>, onAuthenticated: (error?: any) => void) {
         if (this.authenticator) {
             this.authenticator(connection)
                 .then((result) => {
@@ -383,7 +384,7 @@ export class Session extends EventEmitter {
         }
     }
 
-    public sendMessage(connection: WsContext, message: string, data?: any) {
+    public sendMessage(connection: WsContext<Context>, message: string, data?: any) {
         const packet: Partial<StandardPacket> = {
             m: message
         };
@@ -393,7 +394,7 @@ export class Session extends EventEmitter {
         connection.send(JSON.stringify(packet));
     }
 
-    public makeRequest(connection: WsContext, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
+    public makeRequest(connection: WsContext<Context>, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
         const requestId: string = ObjectId();
         const packet: Partial<StandardPacket> = {
             m: message,
@@ -423,7 +424,7 @@ export class Session extends EventEmitter {
         };
     }
 
-    public close(connection: WsContext, code: StatusCode, message?: string) {
+    public close(connection: WsContext<Context>, code: StatusCode, message?: string) {
         this.transport.close(connection, code, message);
     }
 
