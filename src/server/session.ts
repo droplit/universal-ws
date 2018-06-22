@@ -10,7 +10,7 @@ export { StatusCode } from './transport';
 export interface WsContext<Context = any> extends WebSocket {
     context: Context;
     lastHeartbeat: Date;
-    waiting: (() => void)[];
+    // waiting: (() => void)[];
     rpcTransactions: {
         [transactionId: string]: {
             timer: any;
@@ -151,23 +151,8 @@ export class Session extends EventEmitter {
         });
     }
 
-    private awaitReady(connection: WsContext, callback: () => void) {
-        if (connection.context) {
-            process.nextTick(callback);
-        } else {
-            connection.waiting = connection.waiting || [];
-            connection.waiting.push(callback);
-        }
-    }
-
     private connectionReady(connection: WsContext) {
         connection.context = {};
-        if (connection.waiting) {
-            connection.waiting.forEach((callback) => {
-                process.nextTick(callback);
-            });
-            delete connection.waiting;
-        }
     }
 
     private onConnectionActive(connection: WsContext) {
@@ -210,44 +195,42 @@ export class Session extends EventEmitter {
             return;
         }
 
-        this.awaitReady(connection, () => {
-            let packet: StandardPacket;
+        let packet: StandardPacket;
 
-            // parse packet JSON
-            try {
-                packet = JSON.parse(message);
-            } catch (error) {
-                // throw?
-                throw new Error('Invalid packet');
-            }
+        // parse packet JSON
+        try {
+            packet = JSON.parse(message);
+        } catch (error) {
+            // throw?
+            throw new Error('Invalid packet');
+        }
 
-            switch (this.getPacketType(packet)) {
-                case PacketType.Heartbeat: // Heartbeat from client, already handled by onConnectionActive
-                    this.handleHeartbeat(connection, packet);
-                    break;
-                case PacketType.HeartbeatRequest:
-                    this.handleHeartbeatRequest(connection, packet);
-                    break;
-                case PacketType.HeartbeatReceive:
-                    this.handleHeartbeatReceive(connection, packet);
-                    break;
-                case PacketType.HeartbeatTransmit:
-                    this.handleHeartbeatTransmit(connection, packet);
-                    break;
-                case PacketType.Message:
-                    this.handleMessage(connection, packet);
-                case PacketType.Request:
-                    this.handleRequest(connection, packet);
-                    break;
-                case PacketType.Response:
-                    this.handleResponse(connection, packet);
-                    break;
-                case PacketType.Acknowledgement:
-                    this.handleAcknowledgement(connection, packet);
-                default:
-                    throw new Error('Invalid packet received');
-            }
-        });
+        switch (this.getPacketType(packet)) {
+            case PacketType.Heartbeat: // Heartbeat from client, already handled by onConnectionActive
+                this.handleHeartbeat(connection, packet);
+                break;
+            case PacketType.HeartbeatRequest:
+                this.handleHeartbeatRequest(connection, packet);
+                break;
+            case PacketType.HeartbeatReceive:
+                this.handleHeartbeatReceive(connection, packet);
+                break;
+            case PacketType.HeartbeatTransmit:
+                this.handleHeartbeatTransmit(connection, packet);
+                break;
+            case PacketType.Message:
+                this.handleMessage(connection, packet);
+            case PacketType.Request:
+                this.handleRequest(connection, packet);
+                break;
+            case PacketType.Response:
+                this.handleResponse(connection, packet);
+                break;
+            case PacketType.Acknowledgement:
+                this.handleAcknowledgement(connection, packet);
+            default:
+                throw new Error('Invalid packet received');
+        }
     }
 
     private getPacketType(packet: StandardPacket) {
@@ -403,9 +386,7 @@ export class Session extends EventEmitter {
         if (data) {
             packet.d = data;
         }
-        this.awaitReady(connection, () => {
-            connection.send(JSON.stringify(packet));
-        });
+        connection.send(JSON.stringify(packet));
     }
 
     public makeRequest(connection: WsContext, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
@@ -417,28 +398,25 @@ export class Session extends EventEmitter {
             r: requestId
         };
 
-        this.awaitReady(connection, () => {
-            connection.send(JSON.stringify(packet));
+        connection.send(JSON.stringify(packet));
 
-            if (!connection.rpcTransactions) connection.rpcTransactions = {};
-            connection.rpcTransactions[requestId] = {
-                callback: (response: any, error: any) => {
-                    // Clear and delete rpc
-                    clearTimeout(connection.rpcTransactions[requestId].timer);
-                    delete connection.rpcTransactions[requestId];
-                    if (error) {
-                        callback(undefined, error);
-                    } else {
-                        callback(response);
-                    }
-                },
-                timer: setTimeout(() => {
-                    // Timed out in acknowledging response
-                    connection.rpcTransactions[requestId].callback(undefined, 'No response from client connection. Request timed out');
-                }, connection.timeout)
-            };
-
-        });
+        if (!connection.rpcTransactions) connection.rpcTransactions = {};
+        connection.rpcTransactions[requestId] = {
+            callback: (response: any, error: any) => {
+                // Clear and delete rpc
+                clearTimeout(connection.rpcTransactions[requestId].timer);
+                delete connection.rpcTransactions[requestId];
+                if (error) {
+                    callback(undefined, error);
+                } else {
+                    callback(response);
+                }
+            },
+            timer: setTimeout(() => {
+                // Timed out in acknowledging response
+                connection.rpcTransactions[requestId].callback(undefined, 'No response from client connection. Request timed out');
+            }, connection.timeout)
+        };
     }
 
     public close(connection: WsContext, code: StatusCode, message?: string) {
