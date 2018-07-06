@@ -1,6 +1,5 @@
 {
     "name": "universal-ws-tools",
-    "version": "1.0.0",
     "description": "A universal websocket library.",
     "authors": [
         "Chris Woodle <chris@droplit.io>",
