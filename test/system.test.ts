@@ -1,27 +1,32 @@
-/// <reference path="../../node_modules/@types/mocha/index.d.ts" />
+/// <reference types="mocha" />
 import { expect } from 'chai';
-import { Access as Wss, WsContext } from './library';
-import { Access as Ws } from '../client/library';
+import { Access as Wss, WsContext } from '../server';
+import { Access as Ws } from '../client/';
 import * as http from 'http';
 
 const PORT = 3002;
 
 let httpServer: http.Server;
 let server: Wss;
-const serverClients: WsContext[] = [];
+const clientContexts: WsContext[] = [];
 const clients: Ws[] = [];
 
-function initializeServer(callback: () => void) {
+function initializeServer(done: () => void) {
     httpServer = http.createServer();
     httpServer.on('error', (error) => console.log('Server error:', error));
     httpServer.on('listening', () => {
         console.log('Server listening');
-        callback();
+        done();
+    });
+
+    httpServer.on('close', () => {
+        console.log('Server closed.');
+        process.exit(0);
     });
     server = new Wss(httpServer);
     httpServer.listen(PORT);
     server.on('connected', (connection: WsContext) => {
-        serverClients.push(connection);
+        clientContexts.push(connection);
     });
 }
 
@@ -44,8 +49,8 @@ describe('WebSockets', function () {
     });
 
     it('Send a message "test"', (done) => {
-        expect(serverClients[0], 'Server has a client connection').to.exist;
-        server.sendMessage(serverClients[0], 'test');
+        expect(clientContexts[0], 'Server has a client connection').to.exist;
+        server.sendMessage(clientContexts[0], 'test');
         clients[0].onMessage('test', (data: any) => {
             console.log('Client received "test"');
             console.log('data:', data);
@@ -64,7 +69,7 @@ describe('WebSockets', function () {
             }
         });
         const interval = setInterval(() => {
-            server.sendMessage(serverClients[0], `iterationTest`, iterator++);
+            server.sendMessage(clientContexts[0], `iterationTest`, iterator++);
         }, 1);
 
         function check() {
@@ -85,7 +90,7 @@ describe('WebSockets', function () {
             }
         });
         const interval = setInterval(() => {
-            server.sendMessage(serverClients[0], `iterationTest`, {
+            server.sendMessage(clientContexts[0], `iterationTest`, {
                 iterator: iterator++,
                 junk: Array(1000).fill('junk').join(', ')
             });
@@ -98,4 +103,11 @@ describe('WebSockets', function () {
         }
     });
 
+    after((done) => {
+        clients.forEach(client => {
+            client.close();
+        });
+        httpServer.close();
+        done();
+    });
 });

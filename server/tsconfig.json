@@ -1,0 +1,15 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "lib": [
+            "es6"
+        ]
+    },
+    "exclude": [
+        "./dist",
+        "node_modules",
+        "**/*.spec.ts"
+    ]
+}

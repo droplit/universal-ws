@@ -1,0 +1,40 @@
+{
+    "name": "universal-ws-server",
+    "version": "1.0.0",
+    "description": "The server for universal-ws.",
+    "main": "dist/library.js",
+    "types": "dist/library.d.js",
+    "authors": [
+        "Chris Woodle <chris@droplit.io>",
+        "Sabbir Baser <sabbir@droplit.io>"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/droplit/universal-ws.git"
+    },
+    "license": "MIT",
+    "scripts": {
+        "build": "npm run tslint && tsc",
+        "watch": "npm run tslint && tsc --watch --preserveWatchOutput",
+        "clean": "rimraf ./dist",
+        "tslint": "tslint -c ../tslint.base.json -t stylish 'src/**/*.ts' --force",
+        "test": "mocha -r ts-node/register -r source-map-support/register  src/**/*.spec.ts"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.1.4",
+        "@types/mocha": "^5.2.2",
+        "chai": "^4.1.2",
+        "mocha": "^5.2.0",
+        "rimraf": "^2.6.2",
+        "source-map-support": "^0.5.6",
+        "ts-node": "^7.0.0",
+        "tslint": "^5.10.0",
+        "typescript": "^2.9.2"
+    },
+    "dependencies": {
+        "@types/node": "^10.1.2",
+        "@types/ws": "^5.1.1",
+        "bson-objectid": "^1.2.3",
+        "ws": "^5.2.0"
+    }
+}

@@ -73,7 +73,7 @@ export class Access extends EventEmitter {
         this.session.makeRequest(message, data, callback);
     }
 
-    public close(code: StatusCode, message?: string) {
+    public close(code?: StatusCode, message?: string) {
         this.session.close(code, message);
     }
 }

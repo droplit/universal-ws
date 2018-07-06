@@ -1,42 +1,45 @@
 {
-  "name": "universal-ws",
-  "version": "1.0.0",
-  "description": "A universal websocket client",
-  "main": "dist/library.js",
-  "types": "dist/library.d.js",
-  "authors": [
-    "Chris Woodle <chris@droplit.io>",
-    "Sabbir Baser <sabbir@droplit.io>"
-  ],
-  "license": "MIT",
-  "private": true,
-  "scripts": {
-    "build": "npm run tslint && tsc",
-    "watch": "npm run tslint && tsc --watch --preserveWatchOutput",
-    "clean": "rimraf dist",
-    "tslint": "tslint -c tslint.json -t stylish 'src/**/*.ts' --force",
-    "test": "mocha -r ts-node/register -r source-map-support/register  src/**/*.spec.ts"
-  },
-  "devDependencies": {
-    "@types/chai": "^4.1.4",
-    "@types/debug": "0.0.30",
-    "@types/mocha": "^5.2.2",
-    "@types/node": "^10.1.2",
-    "@types/retry": "^0.10.2",
-    "@types/ws": "^5.1.1",
-    "chai": "^4.1.2",
-    "jasmine-spec-reporter": "^4.2.1",
-    "mocha": "^5.2.0",
-    "rimraf": "^2.6.2",
-    "source-map-support": "^0.5.6",
-    "ts-node": "^7.0.0",
-    "tslint": "^5.10.0",
-    "typescript": "^2.8.3"
-  },
-  "dependencies": {
-    "bson-objectid": "^1.2.3",
-    "debug": "^3.1.0",
-    "retry": "^0.12.0",
-    "ws": "^5.2.0"
-  }
+    "name": "universal-ws-tools",
+    "version": "1.0.0",
+    "description": "A universal websocket library.",
+    "authors": [
+        "Chris Woodle <chris@droplit.io>",
+        "Sabbir Baser <sabbir@droplit.io>"
+    ],
+    "license": "MIT",
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/droplit/universal-ws.git"
+    },
+    "scripts": {
+        "build": "npm run tslint && npm run build-client && npm run build-server",
+        "build-client": "cd client && npm run build",
+        "build-server": "cd server && npm run build",
+        "clean": "rimraf */dist",
+        "install-client": "cd client && npm i",
+        "install-server": "cd server && npm i",
+        "postinstall": "npm run install-client && npm run install-server",
+        "teardown": "rimraf */dist */node_modules",
+        "tslint-client": "cd client && npm run tslint",
+        "tslint-server": "cd server && npm run tslint",
+        "tslint": "npm run tslint-client && npm run tslint-server",
+        "test": "npm run test-client && npm run test-server && npm run system-test",
+        "test-client": "cd client && npm test",
+        "test-server": "cd client && npm test",
+        "system-test": "cd test && mocha -r ts-node/register -r source-map-support/register **/*.ts",
+        "watch-client": "cd client && npm run watch",
+        "watch-server": "cd server && npm run watch"
+    },
+    "dependencies": {
+        "@types/chai": "^4.1.4",
+        "@types/mocha": "^5.2.2",
+        "@types/node": "^10.1.2",
+        "chai": "^4.1.2",
+        "mocha": "^5.2.0",
+        "rimraf": "^2.6.2",
+        "source-map-support": "^0.5.6",
+        "ts-node": "^7.0.0",
+        "typescript": "^2.9.2"
+    }
 }

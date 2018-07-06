@@ -1,8 +1,8 @@
 {
-    "compileOnSave": true,
     "compilerOptions": {
         "allowUnreachableCode": false,
         "declaration": true,
+        "declarationMap": true,
         "moduleResolution": "node",
         "noImplicitAny": true,
         "noUnusedLocals": true,
@@ -10,20 +10,10 @@
         "target": "es6",
         "module": "commonjs",
         "inlineSourceMap": true,
-        "outDir": "dist",
-        "rootDir": "src",
         "strict": true,
         "pretty": true,
-        "lib": [
-            "es6",
-            "dom"
-        ],
         "types": [
             "node"
         ]
-    },
-    "exclude": [
-        "./dist",
-        "node_modules"
-    ]
+    }
 }
