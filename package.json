@@ -15,7 +15,7 @@
     "watch": "npm run tslint && tsc --watch --preserveWatchOutput",
     "clean": "rimraf dist",
     "tslint": "tslint -c tslint.json -t stylish 'src/**/*.ts' --force",
-    "test": "mocha ./dist/*/*.spec.js"
+    "test": "mocha -r ts-node/register -r source-map-support/register  src/**/*.spec.ts"
   },
   "devDependencies": {
     "@types/chai": "^4.1.4",
@@ -24,17 +24,19 @@
     "@types/node": "^10.1.2",
     "@types/retry": "^0.10.2",
     "@types/ws": "^5.1.1",
+    "chai": "^4.1.2",
+    "jasmine-spec-reporter": "^4.2.1",
+    "mocha": "^5.2.0",
     "rimraf": "^2.6.2",
+    "source-map-support": "^0.5.6",
+    "ts-node": "^7.0.0",
     "tslint": "^5.10.0",
     "typescript": "^2.8.3"
   },
   "dependencies": {
-    "chai": "^4.1.2",
+    "bson-objectid": "^1.2.3",
     "debug": "^3.1.0",
-    "jasmine-spec-reporter": "^4.2.1",
-    "mocha": "^5.2.0",
     "retry": "^0.12.0",
-    "source-map-support": "^0.5.6",
     "ws": "^5.2.0"
   }
 }
