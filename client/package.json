@@ -1,6 +1,6 @@
 {
     "name": "universal-ws",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "A universal websocket client.",
     "main": "dist/library.js",
     "types": "dist/library.d.js",
@@ -13,6 +13,14 @@
         "url": "https://github.com/droplit/universal-ws.git"
     },
     "license": "MIT",
+    "keywords": [
+        "websocket",
+        "browser",
+        "node",
+        "isomorphic",
+        "universal",
+        "server"
+    ],
     "scripts": {
       "build": "npm run tslint && tsc",
         "clean": "rimraf ./dist",
