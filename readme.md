@@ -21,8 +21,8 @@ In addition to standard websocket features, `universal-ws` provides:
 
 This library is comprised of a client and server module:
 
-* [Client Docs](./client/readme.md)
-* [Server Docs](./server/readme.md) 
+* [Client Docs](./client/)
+* [Server Docs](./server/) 
 
    
 
