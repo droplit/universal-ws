@@ -175,7 +175,7 @@ export class Session<Context = any> extends EventEmitter {
             connection.close();
             this.emit('disconnected', connection);
         } else {
-            throw new Error('Connection not found in list');
+            this.emit('disconnected', connection);
         }
     }
 
@@ -233,6 +233,7 @@ export class Session<Context = any> extends EventEmitter {
                 break;
             case PacketType.Acknowledgement:
                 this.handleAcknowledgement(connection, packet);
+                break;
             default:
                 throw new Error('Invalid packet received');
         }
@@ -312,7 +313,7 @@ export class Session<Context = any> extends EventEmitter {
             const response: Partial<StandardPacket> = {
                 m: JSON.stringify(packet.m),
                 d: result,
-                r: JSON.stringify(packet.i)
+                r: packet.r
             };
             if (onAcknowledge) {
                 const acknowledgementId: string = ObjectId();

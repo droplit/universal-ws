@@ -334,7 +334,7 @@ export class Session extends EventEmitter {
     }
 
     private onResponse(packet: Partial<StandardPacket>) {
-        if (typeof packet.r !== 'string') return;
+        if (typeof packet.r !== 'number') return;
         if (this.rpcTransactions[packet.r]) {
             if (packet.t) { // Client expects acknowledgement of response
                 if (this.transport) this.transport.send(JSON.stringify({ t: packet.t }));
