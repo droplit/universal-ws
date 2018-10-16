@@ -1,6 +1,6 @@
 {
     "name": "universal-ws",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "A universal websocket client.",
     "main": "dist/library.js",
     "types": "dist/library.d.js",
