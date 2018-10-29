@@ -1,8 +1,7 @@
 import { EventEmitter } from 'events';
 import { Session, StatusCode } from './session';
 
-export class Access extends EventEmitter {
-
+export class UniversalWebSocket extends EventEmitter {
     private session: Session;
 
     constructor(

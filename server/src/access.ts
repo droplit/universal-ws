@@ -3,7 +3,7 @@ import { Session, WsOptions, WsContext, StatusCode, PerMessageDeflateOptions } f
 import { Server } from 'http';
 
 export { WsContext, StatusCode, WsOptions, PerMessageDeflateOptions } from './session';
-export class Access<Context = any> extends EventEmitter {
+export class UniversalWebSocketServer<Context = any> extends EventEmitter {
 
     private session: Session;
 

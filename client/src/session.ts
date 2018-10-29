@@ -129,9 +129,10 @@ export class Session extends EventEmitter {
         });
     }
 
-    private restart(onConnected?: (connected: boolean) => void) {
+    private async restart(onConnected?: (connected: boolean) => void) {
         try {
-            this.transport = new WebSocket(this.host);
+            this.transport = new WebSocket();
+            await this.transport.constructTransport(this.host);
             this.transport.on('open', (data: any) => {
                 this.handleOpen(data, onConnected);
             });
