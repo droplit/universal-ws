@@ -22,7 +22,7 @@
         "server"
     ],
     "scripts": {
-      "build": "npm run tslint && tsc",
+        "build": "npm run tslint && tsc",
         "clean": "rimraf ./dist",
         "prepack": "npm run build",
         "tslint": "tslint -c ../tslint.base.json -t stylish 'src/**/*.ts' --force",
