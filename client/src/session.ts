@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import * as retry from 'retry';
-import { UniversalWs as WebSocket, StatusCode } from './transport';
+import { UniversalWs as Transport, StatusCode } from './transport';
 
 export { StatusCode } from './transport';
 
@@ -22,7 +22,7 @@ enum PacketType {
 
 export class Session extends EventEmitter {
     private host: string;
-    private transport?: WebSocket;
+    private transport?: Transport;
     private expires: any;
     private polls: any;
     private waiting: (() => void)[] = [];
@@ -131,7 +131,7 @@ export class Session extends EventEmitter {
 
     private async restart(onConnected?: (connected: boolean) => void) {
         try {
-            this.transport = new WebSocket();
+            this.transport = new Transport();
             await this.transport.constructTransport(this.host);
             this.transport.on('open', (data: any) => {
                 this.handleOpen(data, onConnected);

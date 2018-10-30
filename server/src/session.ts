@@ -311,7 +311,7 @@ export class Session<Context = any> extends EventEmitter {
         // Handle request expecting a response
         this.emit(`#${packet.m}`, packet.r, packet.d, connection.context, (result: any, timeout: number = 5000, onAcknowledge?: (response: any, error?: any) => void) => {
             const response: Partial<StandardPacket> = {
-                m: JSON.stringify(packet.m),
+                m: packet.m,
                 d: result,
                 r: packet.r
             };
