@@ -49,7 +49,7 @@ export class UniversalWs {
                     break;
                 case 'message':
                     this.ws.addEventListener('message', (event: MessageEvent) => {
-                        console.log('rx:', event.data)
+                        // console.log('rx:', event.data)
                         callback(event.data);
                     });
                     break;
@@ -83,7 +83,7 @@ export class UniversalWs {
     }
 
     public send(message: string) {
-        console.log('tx:', message)
+        // console.log('tx:', message)
         if (!this.ws) return;
         if (this.ws instanceof WebSocket) {
             this.ws.send(message);
