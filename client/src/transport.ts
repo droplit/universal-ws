@@ -1,5 +1,3 @@
-import * as nodeWs from './node';
-
 export enum Type {
     Browser,
     Node
@@ -24,68 +22,59 @@ export enum StatusCode {
 }
 
 export class UniversalWs {
-    private ws: any;
-    private type: Type;
+    private ws?: import('ws') | WebSocket;
 
-    constructor(host: string) {
-        let browserSocket: any;
-
+    public async constructTransport(host: string) {
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
         if (typeof WebSocket !== 'undefined') {
-            browserSocket = WebSocket;
-            this.type = Type.Browser;
-        } else if (typeof global !== 'undefined' && typeof (global as any).WebSocket !== 'undefined') {
-            browserSocket = (global as any).Websocket;
-            this.type = Type.Browser;
-        } else if (typeof global !== 'undefined' && typeof (global as any).MozWebSocket !== 'undefined') {
-            browserSocket = (global as any).MozWebSocket;
-            this.type = Type.Browser;
-        } else if (typeof window !== 'undefined' && typeof (window as any).MozWebSocket !== 'undefined') {
-            browserSocket = (window as any).MozWebSocket;
-            this.type = Type.Browser;
-        } else if (typeof self !== 'undefined' && typeof (self as any).MozWebSocket !== 'undefined') {
-            browserSocket = (self as any).MozWebSocket;
-            this.type = Type.Browser;
-        } else {
-            this.ws = new nodeWs.ws(host);
-            this.type = Type.Node;
+            this.ws = new WebSocket(host);
+            return;
         }
 
-        if (this.type === Type.Browser) {
-            this.ws = new browserSocket(host);
+        const ws = await import('ws');
+        if (ws) {
+            this.ws = new ws(host);
+            return;
         }
+
+        throw new Error('Cannot construct WebSocket! Your environment may not support web sockets. See: https://caniuse.com/#feat=websockets');
     }
 
     public on(eventName: 'open' | 'message' | 'close' | 'error', callback: any) {
-        if (this.type === Type.Browser && this.ws instanceof WebSocket) {
+        if (!this.ws) return;
+        if (this.ws instanceof WebSocket) {
             switch (eventName) {
                 case 'open':
-                    this.ws.addEventListener('open', (data: any) => callback(data));
+                    this.ws.addEventListener('open', (event: Event) => callback(event));
                     break;
                 case 'message':
-                    this.ws.addEventListener('message', (data: any) => callback(data));
+                    this.ws.addEventListener('message', (event: MessageEvent) => {
+                        // console.log('rx:', event.data)
+                        callback(event.data);
+                    });
                     break;
                 case 'close':
-                    this.ws.addEventListener('close', (data: { code: number, reason: string, wasClean: boolean }) => callback({ code: data.code, reason: data.reason }));
+                    this.ws.addEventListener('close', (event: CloseEvent) => callback({ code: event.code, reason: event.reason }));
                     break;
                 case 'error':
-                    this.ws.addEventListener('error', (data: any) => callback(data));
+                    this.ws.addEventListener('error', (event: Event) => callback(event));
                     break;
                 default:
                     throw (`Invalid event name ${eventName}`);
             }
-        } else if (this.type === Type.Node && this.ws instanceof nodeWs.ws) {
+        } else {
             switch (eventName) {
                 case 'open':
                     this.ws.on('open', () => callback());
                     break;
                 case 'message':
-                    this.ws.on('message', (data: any) => callback(data));
+                    this.ws.on('message', (data: import('ws').Data) => callback(data));
                     break;
                 case 'close':
                     this.ws.on('close', (code: number, reason: string) => callback({ code, reason }));
                     break;
                 case 'error':
-                    this.ws.on('error', (data: any) => callback(data));
+                    this.ws.on('error', (error: Error) => callback(error));
                     break;
                 default:
                     throw (`Invalid event name ${eventName}`);
@@ -94,27 +83,30 @@ export class UniversalWs {
     }
 
     public send(message: string) {
-        if (this.type === Type.Browser && this.ws instanceof WebSocket) {
+        // console.log('tx:', message)
+        if (!this.ws) return;
+        if (this.ws instanceof WebSocket) {
             this.ws.send(message);
-        } else if (this.type === Type.Node && this.ws instanceof nodeWs.ws) {
+        } else {
             this.ws.send(message);
         }
     }
 
     public close(code: number = 1000, reason: string = '') {
-        if (this.type === Type.Browser && this.ws instanceof WebSocket) {
+        if (!this.ws) return;
+        if (this.ws instanceof WebSocket) {
             this.ws.close(code, reason);
-        } else if (this.type === Type.Node && this.ws instanceof nodeWs.ws) {
+        } else {
             this.ws.close(code, reason);
         }
     }
 
     public getReadyState() {
-        if (this.type === Type.Browser && this.ws instanceof WebSocket) {
+        if (!this.ws) return;
+        if (this.ws instanceof WebSocket) {
             return ReadyState[this.ws.readyState];
-        } else if (this.type === Type.Node && this.ws instanceof nodeWs.ws) {
+        } else {
             return ReadyState[this.ws.readyState];
         }
     }
-
 }
