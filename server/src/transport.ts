@@ -40,8 +40,13 @@ export class Transport extends EventEmitter {
         });
     }
 
-    public send(connection: WebSocket, message: string, callback: (error: Error) => void | undefined) {
-        connection.send(message, callback);
+    public send(connection: WebSocket, message: string, callback?: (error: Error) => void | undefined) {
+        // connection.send(message, callback);
+        connection.send(message, (error) => {
+            if (error) {
+                this.emit('close', connection);
+            }
+        });
     }
 
     public close(connection: WebSocket, code: StatusCode, message?: string) {

@@ -153,6 +153,7 @@ export class Session<Context = any> extends EventEmitter {
 
         this.transport.on('close', (connection: WsContext<Context>, code: number, message: string) => {
             this.emit('close', connection, code, message);
+            this.onConnectionInactive(connection);
         });
     }
 
@@ -272,7 +273,8 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     private handleHeartbeatRequest(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
-        connection.send(JSON.stringify({ t: 'hb' }));
+        this.transport.send(connection, JSON.stringify({ t: 'hb' }));
+        // connection.send(JSON.stringify({ t: 'hb' }));
     }
 
     private handleHeartbeatReceive(connection: WsContext<Context>, packet: Partial<StandardPacket>) {
@@ -339,7 +341,8 @@ export class Session<Context = any> extends EventEmitter {
                 return Promise.resolve();
             }
 
-            connection.send(JSON.stringify(response));
+            this.transport.send(connection, JSON.stringify(response));
+            // connection.send(JSON.stringify(response));
         });
     }
 
@@ -347,7 +350,8 @@ export class Session<Context = any> extends EventEmitter {
         if (typeof packet.r !== 'string') return;
         if (connection.rpcTransactions[packet.r]) {
             if (packet.t) { // Client expects acknowledgement of response
-                connection.send(JSON.stringify({ t: packet.t }));
+                this.transport.send(connection, JSON.stringify({ t: packet.t }));
+                // connection.send(JSON.stringify({ t: packet.t }));
             }
             connection.rpcTransactions[packet.r].callback(packet.d);
         }
@@ -392,7 +396,8 @@ export class Session<Context = any> extends EventEmitter {
         if (data) {
             packet.d = data;
         }
-        connection.send(JSON.stringify(packet));
+        this.transport.send(connection, JSON.stringify(packet));
+        // connection.send(JSON.stringify(packet));
     }
 
     public makeRequest(connection: WsContext<Context>, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
@@ -404,7 +409,8 @@ export class Session<Context = any> extends EventEmitter {
             r: requestId
         };
 
-        connection.send(JSON.stringify(packet));
+        this.transport.send(connection, JSON.stringify(packet));
+        // connection.send(JSON.stringify(packet));
 
         if (!connection.rpcTransactions) connection.rpcTransactions = {};
         connection.rpcTransactions[requestId] = {
