@@ -145,15 +145,15 @@ export class Session<Context = any> extends EventEmitter {
                 this.connections.push(connection);
                 this.emit('connected', connection);
             }
-
-            connection.on('message', (data) => {
-                this.onMessage(connection, data);
-            });
         });
 
         this.transport.on('close', (connection: WsContext<Context>, code: number, message: string) => {
             this.emit('close', connection, code, message);
             this.onConnectionInactive(connection);
+        });
+
+        this.transport.on('message', (connection: WsContext<Context>, data) => {
+            this.onMessage(connection, data);
         });
     }
 
@@ -171,13 +171,10 @@ export class Session<Context = any> extends EventEmitter {
 
     private onConnectionInactive(connection: WsContext<Context>) {
         const index = this.connections.indexOf(connection);
-        if (index > -1) {
-            this.connections.splice(index, 1);
-            connection.close();
-            this.emit('disconnected', connection);
-        } else {
-            this.emit('disconnected', connection);
-        }
+        connection.close();
+        this.emit('disconnected', connection);
+
+        if (index > -1) this.connections.splice(index, 1);
     }
 
     private renewHeartbeat(connection: WsContext<Context>) {
@@ -226,6 +223,7 @@ export class Session<Context = any> extends EventEmitter {
                 break;
             case PacketType.Message:
                 this.handleMessage(connection, packet);
+                break;
             case PacketType.Request:
                 this.handleRequest(connection, packet);
                 break;
