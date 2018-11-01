@@ -37,16 +37,20 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
 
     // Add a handler for a message
     public onMessage(message: string, handler: (clientId: string, data: any, context: Context) => void) {
-        this.session.on(`@${message}`, (clientId, data, context) => {
-            handler(clientId, data, context);
-        });
+        if (this.session.listeners(`@${message}`).length < 1) { // Event listener does not exist yet
+            this.session.on(`@${message}`, (clientId, data, context) => {
+                handler(clientId, data, context);
+            });
+        }
     }
 
     // Add a handler for a request and (optional) receive acknowledgement
     public onRequest(message: string, handler: (clientId: string, data: any, context: Context, callback: (result: any, timeout: number, onAcknowledge: (response: any, error?: any) => void) => Promise<any>) => void) {
-        this.session.on(`#${message}`, (clientId, data, context, callback) => {
-            handler(clientId, data, context, callback);
-        });
+        if (this.session.listeners(`#${message}`).length < 1) {
+            this.session.on(`#${message}`, (clientId, data, context, callback) => {
+                handler(clientId, data, context, callback);
+            });
+        }
     }
 
     public sendMessage(connection: WsContext<Context>, message: string, data?: any) {
