@@ -52,16 +52,20 @@ export class UniversalWebSocket extends EventEmitter {
 
     // Add a handler for a message
     public onMessage(message: string, handler: (data: any) => void) {
-        this.session.on(`@${message}`, (data) => {
-            handler(data);
-        });
+        if (this.session.listeners(`@${message}`).length < 1) { // Listener does not yet exist
+            this.session.on(`@${message}`, (data) => {
+                handler(data);
+            });
+        }
     }
 
     // Add a handler for a request and (optional) receive acknowledgement
     public onRequest(message: string, handler: (id: string, data: any, context: any, callback: (result: any, timeout: number, onAcknowledge: (response: any, error?: any) => void) => Promise<any>) => void) {
-        this.session.on(`#${message}`, (id, data, context, callback) => {
-            handler(id, data, context, callback);
-        });
+        if (this.session.listeners(`#${message}`).length < 1) { // Listener does not yet exist
+            this.session.on(`#${message}`, (id, data, context, callback) => {
+                handler(id, data, context, callback);
+            });
+        }
     }
 
     public sendMessage(message: string, data?: any) {
