@@ -1,5 +1,6 @@
 node_modules
 dist
+browser
 
 .DS_Store
 npm-debug.log

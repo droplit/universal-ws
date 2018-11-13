@@ -7,7 +7,7 @@
         "noImplicitAny": true,
         "noUnusedLocals": true,
         "preserveConstEnums": true,
-        "target": "es6",
+        "target": "es2018",
         "module": "commonjs",
         "inlineSourceMap": true,
         "strict": true,
