@@ -14,6 +14,6 @@ module.exports = {
         'ws'
     ],
     plugins: [
-        new webpack.IgnorePlugin(/ws(?!er)/)
+        new webpack.IgnorePlugin(/ws(?!er)/) // Ignore 'ws' but not `process/browser`
     ]
 };
