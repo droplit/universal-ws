@@ -1,8 +1,9 @@
-import { EventEmitter } from 'events';
 import { Session, StatusCode } from './session';
 
-export class UniversalWebSocket extends EventEmitter {
+export class UniversalWebSocket {
     private session: Session;
+
+    private messages: {[messageName: string]: {[messageId: string]: callback}}
 
     constructor(
         host: string,
@@ -13,45 +14,40 @@ export class UniversalWebSocket extends EventEmitter {
         },
         onConnected?: (connected: boolean) => void
     ) {
-        super();
-
         this.session = new Session(host, options, onConnected);
-
-        this.session.on('connection', (data: any) => {
-            this.onConnection(data);
-        });
-
-        this.session.on('connected', (data: any) => {
-            this.onConnected(data);
-        });
-
-        this.session.on('close', (code: StatusCode, reason: string) => {
-            this.onClose(code, reason);
-        });
-
-        this.session.on('error', (data: any) => {
-            this.onError(data);
-        });
     }
 
-    private onConnection(data: any) {
-        this.emit('connection', data);
+    // Listen for when a connection is established/ready
+    public onConnected(listener: () => void) {
+        if (this.session.listeners('connected').length < 1) { // Listener does not yet exist
+            this.session.on('connected', () => {
+                listener();
+            });
+        }
     }
 
-    private onConnected(data: any) {
-        this.emit('connected', data);
+    // Listen for when a connection has closed/dropped
+    public onClose(listener: (code: StatusCode, reason: string) => void) {
+        if (this.session.listeners('close').length < 1) {
+            this.session.on('close', (code, reason) => {
+                listener(code, reason);
+            });
+        }
     }
 
-    private onClose(code: StatusCode, reason: string) {
-        this.emit('close', code, reason);
-    }
-
-    private onError(data: any) {
-        this.emit('error', data);
+    // Listen for when a connection encounters an error
+    public onError(listener: (data: any) => void) {
+        if (this.session.listeners('error').length < 1) {
+            this.session.on('error', (data) => {
+                listener(data);
+            });
+        }
     }
 
     // Add a handler for a message
     public onMessage(message: string, handler: (data: any) => void) {
+        this.messageHandlers[message].push(handler);
+
         if (this.session.listeners(`@${message}`).length < 1) { // Listener does not yet exist
             this.session.on(`@${message}`, (data) => {
                 handler(data);
@@ -59,11 +55,15 @@ export class UniversalWebSocket extends EventEmitter {
         }
     }
 
+    public removeOnMessage(message: string, handler: (data: any) => void) {
+
+    }
+
     // Add a handler for a request and (optional) receive acknowledgement
-    public onRequest(message: string, handler: (id: string, data: any, context: any, callback: (result: any, timeout: number, onAcknowledge: (response: any, error?: any) => void) => Promise<any>) => void) {
+    public onRequest(message: string, handler: (data: any, context: any, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void) {
         if (this.session.listeners(`#${message}`).length < 1) { // Listener does not yet exist
-            this.session.on(`#${message}`, (id, data, context, callback) => {
-                handler(id, data, context, callback);
+            this.session.on(`#${message}`, (data, context, callback) => {
+                handler(data, context, callback);
             });
         }
     }

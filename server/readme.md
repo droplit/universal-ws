@@ -1,12 +1,34 @@
-# universal-ws-server
-
 [![NPM](https://nodei.co/npm/universal-ws-server.png)](https://www.npmjs.com/package/universal-ws-server)
 
 ![node](https://img.shields.io/github/license/droplit/universal-ws.svg?style=flat-square)
 
-## About
+# Universal WebSocket Server
 
-The server library for [universal-ws](https://www.npmjs.com/package/universal-ws).
+A WebSocket Server with Remote Procedure Call architecture. Works best with the client counterpart [Universal WebSocket](https://www.npmjs.com/package/universal-ws).
+
+Attributes:
+
+* Send and receive messages and data.
+* Store context for each individual client.
+* Make and handle requests.
+* Ensure the client received the response to its request.
+* Periodic heartbeats check if the client is connected and responsive.
+* Compress data with the [WebSocket Per-Message Compression Extension](https://tools.ietf.org/html/rfc7692).
+* Authenticate clients on or after connection.
+
+## Theory of Operation
+
+As a client attempts to connect to the server, the server has the option to authenticate the client to establish the connection. Once connected, the server may send messages/data and make requests to the client. The client may also do the same with the server. The server will handle these requests and also check if the client successfully received the response. Both the server and the client may close the connection at any time.
+
+Note: During authentication process, the client may operate as usual to exchange data with the server such as with responding to requests from the server to provide details.
+
+## Terminology
+
+**Message** - Any string sent and received. May include additional data.
+**Request** - A message that expects a response with data.
+**Response** - Data sent back when a request is made.
+**Acknowledgement** - Message sent back.
+**Heartbeat** - .
 
 ## Installation
 ```

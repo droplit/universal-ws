@@ -301,7 +301,7 @@ export class Session extends EventEmitter {
 
     private onRequest(packet: Partial<StandardPacket>) {
         // Handle request expecting a response
-        this.emit(`#${packet.m}`, packet.r, packet.d, (result: any, timeout: number = 5000, onAcknowledge?: (response: any, error?: any) => void) => {
+        this.emit(`#${packet.m}`, packet.d, (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout: number = 5000) => {
             const response: Partial<StandardPacket> = {
                 m: JSON.stringify(packet.m),
                 d: result,
@@ -325,7 +325,7 @@ export class Session extends EventEmitter {
                     timer: setTimeout(() => {
                         // Timed out in acknowledging response
                         this.rpcTransactions[acknowledgementId].callback(undefined, 'Acknowledgement timed out');
-                    }, timeout)
+                    }, acknowledgementTimeout)
                 };
             } else {
                 return Promise.resolve();
@@ -350,11 +350,6 @@ export class Session extends EventEmitter {
             this.rpcTransactions[packet.t].callback(undefined);
         }
     }
-
-    // NO LONGER NECESSARY?
-    // private sendHeartbeat() {
-    //     this.transport.send(JSON.stringify({ t: 'hb' }));
-    // }
 
     private requestHeartbeat() {
         if (this.transport) this.transport.send(JSON.stringify({ t: 'hbr' }));

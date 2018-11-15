@@ -1,33 +1,35 @@
-import { EventEmitter } from 'events';
 import { Session, WsOptions, WsContext, StatusCode, PerMessageDeflateOptions } from './session';
 import { Server } from 'http';
 
 export { WsContext, StatusCode, WsOptions, PerMessageDeflateOptions } from './session';
-export class UniversalWebSocketServer<Context = any> extends EventEmitter {
+
+export class UniversalWebSocketServer<Context = any> {
 
     private session: Session;
 
-    constructor(server: Server, authenticator?: (connection: WsContext<Context>) => Promise<boolean>, perMessageDeflateOptions?: PerMessageDeflateOptions, options?: WsOptions) {
-        super();
+    constructor(server: Server, perMessageDeflateOptions?: PerMessageDeflateOptions, options?: WsOptions) {
         this.session = new Session(server, authenticator, perMessageDeflateOptions, options);
-        this.session.on('connection', this.connection.bind(this));
-        this.session.on('connected', this.connected.bind(this));
-        this.session.on('close', this.disconnected.bind(this));
     }
 
-    // A new connection that is yet to be authenticated nor established
-    private connection(connection: WsContext<Context>) {
-        this.emit('connection', connection);
+    // Listen for a new connection that is yet to be authenticated nor established
+    public onConnection(listener: (connection: WsContext<Context>) => void) {
+        if (this.session.listeners('connection').length < 1) {
+            this.session.on('connection', listener);
+        }
     }
 
-    // A new authenticated/established connection
-    private connected(connection: WsContext<Context>) {
-        this.emit('connected', connection);
+    // Listen for a new successful/authenticated connection
+    public onConnected(listener: (connection: WsContext<Context>) => void) {
+        if (this.session.listeners('connected').length < 1) {
+            this.session.on('connected', listener);
+        }
     }
 
-    // A connection dropped or closed
-    private disconnected(connection: WsContext<Context>) {
-        this.emit('close', connection);
+    // Listen for a closed/dropped connection
+    public onDisconnected(listener: (connection: WsContext<Context>) => void) {
+        if (this.session.listeners('close').length < 1) {
+            this.session.on('close', listener);
+        }
     }
 
     // Request a specific connection to authenticate
@@ -36,19 +38,19 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
     }
 
     // Add a handler for a message
-    public onMessage(message: string, handler: (clientId: string, data: any, context: Context) => void) {
+    public onMessage(message: string, handler: (connection: WsContext<Context>, data: any, context: Context) => void) {
         if (this.session.listeners(`@${message}`).length < 1) { // Event listener does not exist yet
-            this.session.on(`@${message}`, (clientId, data, context) => {
-                handler(clientId, data, context);
+            this.session.on(`@${message}`, (connection, data, context) => {
+                handler(connection, data, context);
             });
         }
     }
 
     // Add a handler for a request and (optional) receive acknowledgement
-    public onRequest(message: string, handler: (clientId: string, data: any, context: Context, callback: (result: any, timeout: number, onAcknowledge: (response: any, error?: any) => void) => Promise<any>) => void) {
+    public onRequest(message: string, handler: (connection: WsContext<Context>, data: any, context: Context, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void) {
         if (this.session.listeners(`#${message}`).length < 1) {
-            this.session.on(`#${message}`, (clientId, data, context, callback) => {
-                handler(clientId, data, context, callback);
+            this.session.on(`#${message}`, (connection, data, context, callback) => {
+                handler(connection, data, context, callback);
             });
         }
     }
