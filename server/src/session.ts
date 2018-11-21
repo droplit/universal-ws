@@ -22,7 +22,7 @@ export interface Context<T = any> extends WebSocket {
     rpcTransactions: {
         [transactionId: string]: {
             timer: any;
-            callback: (response: any, error?: any) => void;
+            callback: (response: any, error?: Error) => void;
         }
     };
     pollRate: number;
@@ -324,7 +324,7 @@ export class Session<T = any> extends EventEmitter {
 
     // Handle request expecting a response
     private handleRequest(connection: Context<T>, packet: Partial<StandardPacket>) {
-        this.emit(`#${packet.m}`, connection, packet.d, connection.context, (result: any, onAcknowledge?: (response: any, error?: any) => void, aknowledgementTimeout: number = 5000) => {
+        this.emit(`#${packet.m}`, connection, packet.d, connection.context, (result: any, onAcknowledge?: (response: any, error?: Error) => void, aknowledgementTimeout: number = 5000) => {
             const response: Partial<StandardPacket> = {
                 m: packet.m,
                 d: result,
@@ -335,7 +335,7 @@ export class Session<T = any> extends EventEmitter {
                 response.t = acknowledgementId;
                 if (!connection.rpcTransactions) connection.rpcTransactions = {};
                 connection.rpcTransactions[acknowledgementId] = {
-                    callback: (response: any, error?: any) => {
+                    callback: (response: any, error?: Error) => {
                         // Clear and delete rpc
                         clearTimeout(connection.rpcTransactions[acknowledgementId].timer);
                         delete connection.rpcTransactions[acknowledgementId];
@@ -347,7 +347,7 @@ export class Session<T = any> extends EventEmitter {
                     },
                     timer: setTimeout(() => {
                         // Timed out in acknowledging response
-                        connection.rpcTransactions[acknowledgementId].callback(undefined, 'Acknowledgement timed out');
+                        connection.rpcTransactions[acknowledgementId].callback(undefined, new Error('Acknowledgement timed out'));
                     }, aknowledgementTimeout)
                 };
             } else {
@@ -416,7 +416,7 @@ export class Session<T = any> extends EventEmitter {
         this.transport.send(connection, JSON.stringify(packet));
     }
 
-    public makeRequest(connection: Context<T>, message: string, data: any = {}, callback: (response: any, error?: any) => void) {
+    public makeRequest(connection: Context<T>, message: string, data: any = {}, callback: (response: any, error?: Error) => void) {
         const requestId: string = ObjectId();
         const packet: Partial<StandardPacket> = {
             m: message,
@@ -429,7 +429,7 @@ export class Session<T = any> extends EventEmitter {
 
         if (!connection.rpcTransactions) connection.rpcTransactions = {};
         connection.rpcTransactions[requestId] = {
-            callback: (response: any, error: any) => {
+            callback: (response: any, error?: Error) => {
                 // Clear and delete rpc
                 clearTimeout(connection.rpcTransactions[requestId].timer);
                 delete connection.rpcTransactions[requestId];
@@ -441,7 +441,7 @@ export class Session<T = any> extends EventEmitter {
             },
             timer: setTimeout(() => {
                 // Timed out in acknowledging response
-                connection.rpcTransactions[requestId].callback(undefined, 'No response from client connection. Request timed out');
+                connection.rpcTransactions[requestId].callback(undefined, new Error('No response from client connection. Request timed out'));
             }, connection.timeout)
         };
     }

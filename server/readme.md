@@ -15,6 +15,7 @@ Attributes:
 * Periodic heartbeats check if the client is connected and responsive.
 * Compress data with the [WebSocket Per-Message Compression Extension](https://tools.ietf.org/html/rfc7692).
 * Authenticate clients on or after connection.
+* Add or remove individual handlers for when a connection is established or closed and when receiving messages or requests.
 
 ## Theory of Operation
 
@@ -25,33 +26,203 @@ Note: During authentication process, the client may operate as usual to exchange
 ## Terminology
 
 **Message** - Any string sent and received. May include additional data.
-**Request** - A message that expects a response with data.
-**Response** - Data sent back when a request is made.
-**Acknowledgement** - Message sent back.
-**Heartbeat** - .
 
-## Installation
-```
+**Request** - A message that expects a response with data.
+
+**Response** - Data sent back when a request is made.
+
+**Acknowledgement** - Message sent back when the response was received.
+
+**Heartbeat** - Message sent periodically to check connection status.
+
+## Getting Started
+
+### Installation
+
+```shell
 npm install universal-ws-server
 ```
 
-## Example
+### Server Setup
+
 ```js
 import * as http from 'http';
-import { Access, StatusCode, PerMessageDeflateOptions, WsContext } from 'universal-ws-server';
+import { UniversalWebSocketServer, Options, Context, StatusCode } from 'universal-ws-server';
+
+interface ClientContext {
+    identity: string;
+}
 
 const httpServer = http.createServer();
-const WebSocketServer = new Access(httpServer);
+const WebSocketServer = new UniversalWebSocketServer<ClientContext>(httpServer);
 
+WebSocketServer.on('connected', (connection) => {
+  console.log('Successfully connected to a client!');
+});
+```
+
+### Authenticating
+
+```js
+import * as http from 'http';
+import { UniversalWebSocketServer, Options, Context, StatusCode } from 'universal-ws-server';
+
+interface ClientContext {
+  identities: string[];
+}
+
+const httpServer = http.createServer();
+const WebSocketServer = new UniversalWebSocketServer<ClientContext>(httpServer);
+
+WebSocketServer.setAuthenticator((connection) => {
+  WebSocketServer.sendMessage(connection, 'Who are you and how did you get in here?');
+
+    const authenticationMessageHandlerId = WebSocketServer.onMessage('I am', (connection, data: { identities: string[] }, context) => {
+        if (data.identities && data.identities.length) {
+            if (data.identities.some(identity => identity === 'locksmith')) {
+                return Promise.resolve(true);
+            } else {
+                return Promise.resolve(false);
+            }
+        } else {
+            return Promise.resolve(false);
+        }
+    });
+});
+
+const connectedHandlerId = WebSocketServer.on('connected', (connection: WsContext) => {
+    console.log('Successfully connected to a client!');
+});
+```
+
+### Client connects and disconnects
+
+```js
+// Handle clients when connected to the server
 WebSocketServer.on('connected', (connection: WsContext) => {
     console.log('Successfully connected to a client!');
 });
 
-WebSocketServer.onMessage('hello', (clientId, data, context) => {
-    console.log('Received a hello!');
+// Handle clients that have disconnected from the server
+WebSocketServer.on('close', (connection: WsContext) => {
+  console.log('Client no longer connected!');
 });
-
 ```
+
+### Disconnect from a client
+
+```js
+// Client sends a message to set their identity or attempt to ruin a database
+WebSocketServer.onMessage('Hi, my name is', (connection, data: string, context) => {
+    if (data !== 'DROP TABLE CLIENTS;') {
+        context.identity = data;
+        console.log('Client identity set:', data);
+    } else {
+        // Close the undesired connection
+        WebSocketServer.close(connection);
+    }
+});
+```
+
+### Send a message to a client
+
+```js
+// Message clients when they connect to the server
+console.log('Sending a friendly message...');
+WebSocketServer.sendMessage(connection, 'Welcome!');
+```
+
+### Handle a message from a client
+
+```js
+// Client sends a message with their identity
+WebSocketServer.onMessage('Hi, my name is', (connection, data: string, context) => {
+    context.identity = data;
+    console.log('Client identity set:', data);
+});
+```
+
+### Make a request to a client
+
+```js
+const connections: Context<ClientContext>[] = [];
+
+/**
+ * Client connects and is pushed to connections list
+ */
+
+// Request information from the client with additional data
+WebSocketServer.makeRequest(connections[0], 'What is your name?', { includeFirst: true, includeLast: true }, (response: { first: string, last: string }, error) => {
+    if (!error) {
+        // Use client's response optional data
+        connections[0].context.identity = `${response.first} ${response.last}`;
+    } else {
+        // Request timed out
+        console.log('Failed to make request');
+    }
+});
+```
+
+### Handle a request from a client
+
+```js
+const status: string = 'Initializing';
+
+/**
+ * Some stuff happens
+ */
+
+status = 'Running';
+
+// Request information from the client with additional data
+WebSocketServer.onRequest('Is this your state?', (connection, data: { state: string }, context, callback: (result, onAcknowledge, acknowledgementTimeout)) => {
+    // respond to the request with some result
+    callback(data.state === status);
+});
+```
+
+### Handle a request from a client and expect the client to acknowledge the response
+
+```js
+const status: string = 'Initializing';
+
+/**
+ * Some stuff happens
+ */
+
+status = 'Running';
+
+// Request information from the client with additional data
+WebSocketServer.onRequest('Is this your state?', (connection, data: { state: string }, context, callback: (result, onAcknowledge?: (response: any, error?: Error) => void, acknowledgementTimeout?: number)) => {
+    // respond to the request with some result
+    // Acknowledgement callback returns when client acknowledges reception of the response before the timeout (in miliseconds)
+    callback(data.state === status, (response: any, error?: Error) => {
+        if (!error) {
+            console.log('Client received the response and acknowledged it');
+        } else {
+            console.log('Client failed to acknowledge the response or the response failed to reach the client');
+        }
+    }, 10000);
+});
+```
+
+## Advanced Options
+
+### Poll Rate
+
+How often the heartbeat will 
+
+### Timeout
+
+Value: 60000ms or `{ minimum, maximum }`
+
+The maximum time(ms) which a client can miss heartbeats until the client is considered to be disconnected. If setting as a range, the minimum and maximum must be greater than the minimum and maximum of pollRate, respectively. UniversalWebSocket.onDisconnnected(callback) will be called with the connection when this occurs.
+
+### Conserve Bandwidth
+
+### Per-Message Deflate
+
+## Example
 
 ### Handle events:
 * `connection` - Connection attempt.
