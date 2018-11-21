@@ -14,6 +14,7 @@ export interface Options {
     conserveBandwidth?: boolean;
     perMessageDeflate?: WebSocket.PerMessageDeflateOptions;
     requireAuthentication?: boolean;
+    authenticationTimeout?: number;
 }
 export interface Context<T = any> extends WebSocket {
     context?: T;
@@ -26,7 +27,9 @@ export interface Context<T = any> extends WebSocket {
     };
     pollRate: number;
     timeout: number;
-    expires: any;
+    expires: NodeJS.Timer;
+    authenticatorTimeout: NodeJS.Timer;
+    authenticationCycle: NodeJS.Timer;
 }
 
 export interface StandardPacket {
@@ -52,14 +55,14 @@ export class Session<T = any> extends EventEmitter {
 
     private transport: Transport;
     private authenticator?: (connection: Context<T>) => Promise<boolean>;
+    private requireAuthentication = true;
+    private authenticationTimeout = 15000;
     private pollRate = { minimum: 1000, maximum: 10000 };
     private timeout = { minimum: 20000, maximum: 60000 };
     private conserveBandwidth = false;
-    private authenticated = true;
     public connections: Context<T>[] = [];
 
-    constructor(
-        server: http.Server, options?: Options) {
+    constructor(server: http.Server, options?: Options) {
         super();
         this.transport = new Transport(server, options && options.perMessageDeflate ? options.perMessageDeflate : undefined);
         if (options) {
@@ -110,41 +113,49 @@ export class Session<T = any> extends EventEmitter {
                 }
             }
             this.conserveBandwidth = options.conserveBandwidth ? true : false;
-            if (options.requireAuthentication) this.authenticated = false;
+            if (options.requireAuthentication) this.requireAuthentication = false;
+            if (options.authenticationTimeout) {
+                if (!options.requireAuthentication) throw new Error('Authentication timeout cannot be set without requiring authentication');
+                this.authenticationTimeout = options.authenticationTimeout;
+            }
         }
 
         this.transport.on('connection', (connection: Context<T>) => {
             this.emit('connection', connection);
             connection.timeout = 60000;
             connection.pollRate = this.conserveBandwidth ? this.pollRate.minimum : this.pollRate.maximum;
+            this.onConnectionActive(connection);
+            this.connectionReady(connection);
+            this.connections.push(connection);
             connection.expires = setTimeout(() => {
                 this.onConnectionInactive(connection);
             }, connection.timeout);
-            if (authenticator) {
-                this.authenticator = authenticator;
-                authenticator(connection)
-                    .then((result) => {
-                        if (result) {
-                            this.onConnectionActive(connection);
-                            this.connectionReady(connection);
-                            this.connections.push(connection);
-                            this.emit('connected', connection);
-                        } else {
-                            this.emit('disconnected', connection);
-                            connection.close(1008, JSON.stringify({ code: 1008, reason: 'auth' }));
-                        }
-                    })
-                    .catch((error) => {
-                        this.emit('disconnected', connection);
-                        connection.close(1008, JSON.stringify({ code: 1008, reason: 'auth' }));
-                    });
-            } else {
+
+            if (this.requireAuthentication) {
                 this.authenticator = (connection) => Promise.resolve(true);
                 // No need to authenticate
-                this.onConnectionActive(connection);
-                this.connectionReady(connection);
-                this.connections.push(connection);
                 this.emit('connected', connection);
+            } else {
+                connection.authenticatorTimeout = setTimeout(() => {
+                    // Connection failed to authenticate
+                    this.onConnectionInactive(connection);
+                }, this.authenticationTimeout);
+
+                connection.authenticationCycle = setInterval(() => {
+                    if (this.authenticator) {
+                        this.authenticator(connection)
+                            .then((result) => {
+                                if (result) {
+                                    clearInterval(connection.authenticationCycle);
+                                    clearTimeout(connection.authenticatorTimeout);
+                                } else {
+                                    this.onConnectionInactive(connection);
+                                }
+                            }).catch((error) => {
+                                this.onConnectionInactive(connection);
+                            });
+                    }
+                }, 50);
             }
         });
 
@@ -170,9 +181,12 @@ export class Session<T = any> extends EventEmitter {
         }
     }
 
-    private onConnectionInactive(connection: Context<T>) {
+    private onConnectionInactive(connection: Context<T>, code?: StatusCode, reason?: string) {
+        if (connection.expires) clearTimeout(connection.expires);
+        if (connection.authenticatorTimeout) clearTimeout(connection.authenticatorTimeout);
+        if (connection.authenticationCycle) clearInterval(connection.authenticationCycle);
         const index = this.connections.indexOf(connection);
-        connection.close();
+        connection.close(code, reason);
         this.emit('disconnected', connection);
 
         if (index > -1) this.connections.splice(index, 1);
@@ -361,6 +375,10 @@ export class Session<T = any> extends EventEmitter {
         if (connection.rpcTransactions[packet.t]) {
             connection.rpcTransactions[packet.t].callback(undefined);
         }
+    }
+
+    public setAuthenticator(authenticator: (connection: Context<T>) => Promise<boolean>) {
+        this.authenticator = authenticator;
     }
 
     public requestAuthentication(connection: Context<T>, onAuthenticated: (error?: any) => void) {

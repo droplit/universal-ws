@@ -1,9 +1,17 @@
 import { Session, StatusCode } from './session';
 
+export type handlerId = string;
+
 export class UniversalWebSocket {
     private session: Session;
 
-    private messages: {[messageName: string]: {[messageId: string]: callback}}
+    private handlersCount = 0;
+    private handlers: {
+        [handlerId: string]: {
+            type: 'connection' | 'connected' | 'close' | string,
+            handler: any
+        }
+    } = {};
 
     constructor(
         host: string,
@@ -17,55 +25,68 @@ export class UniversalWebSocket {
         this.session = new Session(host, options, onConnected);
     }
 
-    // Listen for when a connection is established/ready
-    public onConnected(listener: () => void) {
-        if (this.session.listeners('connected').length < 1) { // Listener does not yet exist
-            this.session.on('connected', () => {
-                listener();
-            });
+    public removeHandler(handlerId: handlerId) {
+        const handler = this.handlers[handlerId];
+        if (handler) {
+            this.session.removeListener(handler.type, handler.handler);
+        } else {
+
         }
+    }
+
+    // Listen for when a connection is established/ready
+    public onConnected(handler: () => void): handlerId {
+        const handlerId = this.newListenerId();
+        this.handlers[handlerId] = {
+            type: 'connected',
+            handler
+        };
+        this.session.on('connected', handler);
+        return handlerId;
     }
 
     // Listen for when a connection has closed/dropped
-    public onClose(listener: (code: StatusCode, reason: string) => void) {
-        if (this.session.listeners('close').length < 1) {
-            this.session.on('close', (code, reason) => {
-                listener(code, reason);
-            });
-        }
+    public onClose(handler: (code: StatusCode, reason: string) => void): handlerId {
+        const handlerId = this.newListenerId();
+        this.handlers[handlerId] = {
+            type: 'close',
+            handler
+        };
+        this.session.on('close', handler);
+        return handlerId;
     }
 
     // Listen for when a connection encounters an error
-    public onError(listener: (data: any) => void) {
-        if (this.session.listeners('error').length < 1) {
-            this.session.on('error', (data) => {
-                listener(data);
-            });
-        }
+    public onError(handler: (data: any) => void): handlerId {
+        const handlerId = this.newListenerId();
+        this.handlers[handlerId] = {
+            type: 'error',
+            handler
+        };
+        this.session.on('error', handler);
+        return handlerId;
     }
 
     // Add a handler for a message
-    public onMessage(message: string, handler: (data: any) => void) {
-        this.messageHandlers[message].push(handler);
-
-        if (this.session.listeners(`@${message}`).length < 1) { // Listener does not yet exist
-            this.session.on(`@${message}`, (data) => {
-                handler(data);
-            });
-        }
-    }
-
-    public removeOnMessage(message: string, handler: (data: any) => void) {
-
+    public onMessage(message: string, handler: (data: any) => void): handlerId {
+        const handlerId = this.newListenerId();
+        this.handlers[handlerId] = {
+            type: `@${message}`,
+            handler
+        };
+        this.session.on(`@${message}`, handler);
+        return handlerId;
     }
 
     // Add a handler for a request and (optional) receive acknowledgement
-    public onRequest(message: string, handler: (data: any, context: any, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void) {
-        if (this.session.listeners(`#${message}`).length < 1) { // Listener does not yet exist
-            this.session.on(`#${message}`, (data, context, callback) => {
-                handler(data, context, callback);
-            });
-        }
+    public onRequest(message: string, handler: (data: any, context: any, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void): handlerId {
+        const handlerId = this.newListenerId();
+        this.handlers[handlerId] = {
+            type: `#${message}`,
+            handler
+        };
+        this.session.on(`#${message}`, handler);
+        return handlerId;
     }
 
     public sendMessage(message: string, data?: any) {
@@ -78,5 +99,10 @@ export class UniversalWebSocket {
 
     public close(code?: StatusCode, message?: string) {
         this.session.close(code, message);
+    }
+
+    private newListenerId(): handlerId {
+        if (this.handlersCount === Number.MAX_SAFE_INTEGER) this.handlersCount = 0; // Reset to 0
+        return `${++this.handlersCount}`;
     }
 }
