@@ -72,7 +72,7 @@ export class UniversalWebSocketServer<T = any> {
     }
 
     // Add a handler for a message
-    public onMessage(message: string, handler: (connection: Context<T>, data: any, context: Context) => void): handlerId {
+    public onMessage(message: string, handler: (connection: Context<T>, data: any, context: T) => void): handlerId {
         const handlerId = this.newListenerId();
         this.handlers[handlerId] = {
             type: `@${message}`,
@@ -83,7 +83,7 @@ export class UniversalWebSocketServer<T = any> {
     }
 
     // Add a handler for a request and (optional) receive acknowledgement
-    public onRequest(message: string, handler: (connection: Context<T>, data: any, context: Context, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void): handlerId {
+    public onRequest(message: string, handler: (connection: Context<T>, data: any, context: T, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void): handlerId {
         const handlerId = this.newListenerId();
         this.handlers[handlerId] = {
             type: `#${message}`,

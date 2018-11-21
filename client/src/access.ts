@@ -79,7 +79,7 @@ export class UniversalWebSocket {
     }
 
     // Add a handler for a request and (optional) receive acknowledgement
-    public onRequest(message: string, handler: (data: any, context: any, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void): handlerId {
+    public onRequest(message: string, handler: (data: any, callback: (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout?: number) => Promise<any>) => void): handlerId {
         const handlerId = this.newListenerId();
         this.handlers[handlerId] = {
             type: `#${message}`,
