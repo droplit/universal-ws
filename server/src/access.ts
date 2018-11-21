@@ -29,6 +29,10 @@ export class UniversalWebSocketServer<T = any> {
         }
     }
 
+    public setAuthenticator(authenticator: (connection: Context<T>) => Promise<boolean>) {
+        this.session.setAuthenticator(authenticator);
+    }
+
     // Listen for a new connection that is yet to be authenticated nor established
     public onConnection(handler: (connection: Context<T>) => void): handlerId {
         const handlerId = this.newListenerId();
