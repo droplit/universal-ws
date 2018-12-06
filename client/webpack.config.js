@@ -13,6 +13,6 @@ module.exports = {
         'ws'
     ],
     plugins: [
-        new webpack.IgnorePlugin(/ws(?!er)/) // Ignore 'ws' but not `process/browser`
+        new webpack.IgnorePlugin(/^ws$/) // Ignore 'ws' but not `process/browser`
     ]
 };
