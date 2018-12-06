@@ -8,32 +8,44 @@ const ObjectId = require('bson-objectid');
 export { StatusCode } from './transport';
 export { PerMessageDeflateOptions } from 'ws';
 
-export interface Options {
-    pollRate?: number | { minimum: number, maximum: number };
-    timeout?: number | { minimum: number, maximum: number };
-    conserveBandwidth?: boolean;
-    perMessageDeflate?: WebSocket.PerMessageDeflateOptions;
-    requireAuthentication?: boolean;
-    authenticationTimeout?: number;
+enum HeartbeatMode {
+    upstream = 'upstream',
+    downstream = 'downstream',
+    roundtrip = 'roundtrip',
+    disabled = 'disabled'
 }
-export interface Context<T = any> extends WebSocket {
-    context?: T;
-    lastHeartbeat: Date;
+
+enum State {
+    open = 'open',
+    closed = 'closed'
+}
+
+export interface Options {
+    defaultHeartbeatMode?: HeartbeatMode;
+    defaultHeartbeatInterval?: number;
+    heartbeatTimeoutMultiplier?: number;
+    supportedOptions?: {
+        heartbeatModes?: Set<HeartbeatMode> | HeartbeatMode[];
+        minHeartbeatInterval?: number;
+        maxHeartbeatInterval?: number;
+        perMessageDeflateOptions?: WebSocket.PerMessageDeflateOptions;
+    };
+}
+
+export interface Connection extends WebSocket {
+    heartbeatModes: Set<HeartbeatMode>;
+    heartbeatInterval: number;
     rpcTransactions: {
         [transactionId: string]: {
             timer: any;
             callback: (response: any, error?: Error) => void;
         }
     };
-    pollRate: number;
-    timeout: number;
     expires: NodeJS.Timer;
-    authenticatorTimeout: NodeJS.Timer;
-    authenticationCycle: NodeJS.Timer;
 }
 
 export interface StandardPacket {
-    t?: 'hb' | 'hbr' | 'hbrx' | 'hbtx' | string;
+    t?: 'hb' | 'hbr' | string;
     m: string;
     d: any;
     r?: boolean | string;
@@ -43,165 +55,127 @@ export interface StandardPacket {
 enum PacketType {
     Heartbeat,
     HeartbeatRequest,
-    HeartbeatReceive,
-    HeartbeatTransmit,
+    ConnectionSettings,
     Message,
     Request,
     Response,
     Acknowledgement
 }
 
-export class Session<T = any> extends EventEmitter {
+class Client<Context = any> extends EventEmitter {
+    private _connection: Connection;
 
+    public context: Context | undefined;
+    public heartbeatMode: HeartbeatMode | undefined;
+    public heartbeatInterval: number | undefined;
+    public lastHeartbeat: Date | undefined;
+    public username: string | undefined;
+    public password: string | undefined;
+    public state: State | undefined;
+
+    constructor(connection: Connection) {
+        super();
+        this._connection = connection;
+    }
+
+    public get connection(): Connection {
+        return this._connection;
+    }
+    public set connection(connection: Connection) {
+        this._connection = connection;
+    }
+}
+
+export class Session<Context = any> extends EventEmitter {
     private transport: Transport;
-    private authenticator?: (connection: Context<T>) => Promise<boolean>;
-    private requireAuthentication = true;
-    private authenticationTimeout = 15000;
-    private pollRate = { minimum: 1000, maximum: 10000 };
-    private timeout = { minimum: 20000, maximum: 60000 };
-    private conserveBandwidth = false;
-    public connections: Context<T>[] = [];
+    private defaultHeartbeatMode: HeartbeatMode;
+    private defaultHeartbeatInterval: number;
+    private heartbeatTimeoutMultiplier: number | ((client: Client) => number);
+    private supportedHeartbeatModes: HeartbeatMode[] | Set<HeartbeatMode>;
+    private minHeartbeatInterval: number;
+    private maxHeartbeatInterval: number;
+
+    public clients: Client<Context>[] = [];
 
     constructor(server: http.Server, options?: Options) {
         super();
-        this.transport = new Transport(server, options && options.perMessageDeflate ? options.perMessageDeflate : undefined);
-        if (options) {
-            if (options.pollRate) {
-                if (typeof options.pollRate === 'number') {
-                    this.pollRate.minimum = this.pollRate.maximum = options.pollRate;
-                } else if (typeof options.pollRate === 'object'
-                    && options.pollRate !== null
-                    && typeof options.pollRate.minimum === 'number'
-                    && typeof options.pollRate.maximum === 'number'
-                    && options.pollRate.minimum > 0) {
-                    if (options.pollRate.maximum > options.pollRate.minimum) {
-                        this.pollRate = options.pollRate;
-                    } else {
-                        throw new Error('Pollrate maximum must be larger than minimum');
-                    }
+        this.transport = new Transport(server, options && options.supportedOptions && options.supportedOptions.perMessageDeflateOptions ? options.supportedOptions.perMessageDeflateOptions : undefined);
+
+        // Fill in empty
+        if (!options) options = {};
+        if (!options.supportedOptions) options.supportedOptions = {};
+        this.defaultHeartbeatMode = options.defaultHeartbeatMode ? options.defaultHeartbeatMode : HeartbeatMode.roundtrip;
+        this.defaultHeartbeatInterval = options.defaultHeartbeatInterval ? options.defaultHeartbeatInterval : 1;
+        this.supportedHeartbeatModes = options.supportedOptions.heartbeatModes ? options.supportedOptions.heartbeatModes : [HeartbeatMode.roundtrip];
+        this.heartbeatTimeoutMultiplier = options.heartbeatTimeoutMultiplier ? options.heartbeatTimeoutMultiplier : 2.5;
+        this.minHeartbeatInterval = options.supportedOptions.minHeartbeatInterval ? options.supportedOptions.minHeartbeatInterval : .1;
+        this.maxHeartbeatInterval = options.supportedOptions.maxHeartbeatInterval ? options.supportedOptions.maxHeartbeatInterval : 60;
+
+        this.transport.on('connection', (connection: Connection, request: http.IncomingMessage) => {
+            const client = new Client(connection);
+            this.clients.push(client);
+            // Set up connection expiration and start timeout
+            this.onConnectionActive(client);
+            // Set up authentication info
+            if (request.headers.authorization) {
+                if (request.headers.authorization.startsWith('Basic ')) {
+                    const decodedAuth = Buffer.from(request.headers.authorization.replace('Basic ', ''), 'base64').toString();
+                    const [username, password] = decodedAuth.split(':');
+                    client.username = username;
+                    client.password = password;
                 } else {
-                    throw new Error('Pollrate must be a positive integer or an object containing minimum or maximum positive integers');
+                    console.log('UNEXPECTED AUTH HEADER:', request.headers.authorization);
                 }
             }
-            if (options.timeout) {
-                if (typeof options.timeout === 'number') {
-                    if (options.timeout > this.pollRate.maximum) {
-                        this.timeout.minimum = this.timeout.maximum = options.timeout;
-                    } else {
-                        throw new Error('Timeout must be larger than pollrate maximum');
-                    }
-                } else if (typeof options.timeout === 'object'
-                    && options.timeout !== null
-                    && typeof options.timeout.minimum === 'number'
-                    && typeof options.timeout.maximum === 'number'
-                    && options.timeout.minimum > 0) {
-                    if (options.timeout.maximum > options.timeout.minimum) {
-                        if (options.timeout.maximum > this.pollRate.maximum) {
-                            if (options.timeout.minimum > this.pollRate.minimum) {
-                                this.timeout = options.timeout;
-                            } else {
-                                throw new Error('Timeout minimum must be larger than pollrate minimum');
-                            }
-                        } else {
-                            throw new Error('Timeout maximum must be larger than pollrate maximum');
-                        }
-                    } else {
-                        throw new Error('Timeout maximum must be larger than minimum');
-                    }
-                } else {
-                    throw new Error('Timeout must be a positive integer or an object containing minimum or maximum positive integers');
-                }
-            }
-            this.conserveBandwidth = options.conserveBandwidth ? true : false;
-            if (options.requireAuthentication) this.requireAuthentication = false;
-            if (options.authenticationTimeout) {
-                if (!options.requireAuthentication) throw new Error('Authentication timeout cannot be set without requiring authentication');
-                this.authenticationTimeout = options.authenticationTimeout;
-            }
-        }
 
-        this.transport.on('connection', (connection: Context<T>) => {
-            this.emit('connection', connection);
-            connection.timeout = 60000;
-            connection.pollRate = this.conserveBandwidth ? this.pollRate.minimum : this.pollRate.maximum;
-            this.onConnectionActive(connection);
-            this.connectionReady(connection);
-            this.connections.push(connection);
-            connection.expires = setTimeout(() => {
-                this.onConnectionInactive(connection);
-            }, connection.timeout);
+            this.emit('connected', client);
+        });
 
-            if (this.requireAuthentication) {
-                this.authenticator = (connection) => Promise.resolve(true);
-                // No need to authenticate
-                this.emit('connected', connection);
-            } else {
-                connection.authenticatorTimeout = setTimeout(() => {
-                    // Connection failed to authenticate
-                    this.onConnectionInactive(connection);
-                }, this.authenticationTimeout);
-
-                connection.authenticationCycle = setInterval(() => {
-                    if (this.authenticator) {
-                        this.authenticator(connection)
-                            .then((result) => {
-                                if (result) {
-                                    clearInterval(connection.authenticationCycle);
-                                    clearTimeout(connection.authenticatorTimeout);
-                                } else {
-                                    this.onConnectionInactive(connection);
-                                }
-                            }).catch((error) => {
-                                this.onConnectionInactive(connection);
-                            });
-                    }
-                }, 50);
+        this.transport.on('close', (connection: Connection, code: number, message: string) => {
+            const client = this.getClient(connection);
+            if (client) {
+                this.emit('close', client, code, message);
+                this.onConnectionInactive(client);
             }
         });
 
-        this.transport.on('close', (connection: Context<T>, code: number, message: string) => {
-            this.emit('close', connection, code, message);
-            this.onConnectionInactive(connection);
-        });
-
-        this.transport.on('message', (connection: Context<T>, data) => {
-            this.onMessage(connection, data);
+        this.transport.on('message', (connection: Connection, data) => {
+            const client = this.getClient(connection);
+            if (client) this.onMessage(client, data);
         });
     }
 
-    private connectionReady(connection: Context<T>) {
-        connection.context = <T>{};
-    }
-
-    private onConnectionActive(connection: Context<T>) {
-        if (!connection.context) {
-            return;
+    private getClient(connection: Connection) {
+        const index = this.clients.map(client => client.connection).indexOf(connection);
+        if (index > -1) {
+            return this.clients[index]
         } else {
-            this.renewHeartbeat(connection);
+            return undefined;
         }
     }
 
-    private onConnectionInactive(connection: Context<T>, code?: StatusCode, reason?: string) {
-        if (connection.expires) clearTimeout(connection.expires);
-        if (connection.authenticatorTimeout) clearTimeout(connection.authenticatorTimeout);
-        if (connection.authenticationCycle) clearInterval(connection.authenticationCycle);
-        const index = this.connections.indexOf(connection);
-        connection.close(code, reason);
-        this.emit('disconnected', connection);
-
-        if (index > -1) this.connections.splice(index, 1);
+    private onConnectionActive(client: Client) {
+        if (client.connection.expires) {
+            client.connection.expires.refresh();
+        } else {
+            // Initial setup for timeout
+            client.connection.expires = setTimeout(() => {
+                this.onConnectionInactive(client);
+            }, (client.connection.heartbeatInterval || this.defaultHeartbeatInterval) * (typeof this.heartbeatTimeoutMultiplier === 'number' ? this.heartbeatTimeoutMultiplier : this.heartbeatTimeoutMultiplier(client)) * 1000);
+        }
     }
 
-    private renewHeartbeat(connection: Context<T>) {
-        clearTimeout(connection.expires);
-        connection.expires = setTimeout(() => {
-            this.onConnectionInactive(connection);
-        }, connection.timeout);
-        connection.lastHeartbeat = new Date();
+    private onConnectionInactive(client: Client, code?: StatusCode, reason?: string) {
+        if (client.connection.expires) clearTimeout(client.connection.expires);
+        const index = this.clients.indexOf(client);
+        client.connection.close(code, reason);
+        this.emit('disconnected', client);
+
+        if (index > -1) this.clients.splice(index, 1);
     }
 
-    private onMessage(connection: Context<T>, message: any) {
-        this.onConnectionActive(connection);
+    private onMessage(client: Client, message: any) {
+        this.onConnectionActive(client);
 
         // Empty message
         if (!message) {
@@ -225,28 +199,25 @@ export class Session<T = any> extends EventEmitter {
 
         switch (this.getPacketType(packet)) {
             case PacketType.Heartbeat: // Heartbeat from client, already handled by onConnectionActive
-                this.handleHeartbeat(connection, packet);
+                this.handleHeartbeat(client, packet);
                 break;
             case PacketType.HeartbeatRequest:
-                this.handleHeartbeatRequest(connection, packet);
+                this.handleHeartbeatRequest(client, packet);
                 break;
-            case PacketType.HeartbeatReceive:
-                this.handleHeartbeatReceive(connection, packet);
-                break;
-            case PacketType.HeartbeatTransmit:
-                this.handleHeartbeatTransmit(connection, packet);
+            case PacketType.ConnectionSettings:
+                this.handleConnectionSettings(client, packet);
                 break;
             case PacketType.Message:
-                this.handleMessage(connection, packet);
+                this.handleMessage(client, packet);
                 break;
             case PacketType.Request:
-                this.handleRequest(connection, packet);
+                this.handleRequest(client, packet);
                 break;
             case PacketType.Response:
-                this.handleResponse(connection, packet);
+                this.handleResponse(client, packet);
                 break;
             case PacketType.Acknowledgement:
-                this.handleAcknowledgement(connection, packet);
+                this.handleAcknowledgement(client, packet);
                 break;
             default:
                 throw new Error('Invalid packet received');
@@ -269,10 +240,8 @@ export class Session<T = any> extends EventEmitter {
                     return PacketType.Heartbeat;
                 case 'hbr': // Client requests a heartbeat from the server
                     return PacketType.HeartbeatRequest;
-                case 'hbrx': // Client requests a change in server polling rate or client timeout
-                    return PacketType.HeartbeatReceive;
-                case 'hbtx': // Client requests a change in client polling rate or server timeout
-                    return PacketType.HeartbeatTransmit;
+                case 'cs': // Client sends its connection settings
+                    return PacketType.ConnectionSettings;
                 default: // Client acknowledges a response from the server
                     return PacketType.Acknowledgement;
             }
@@ -281,41 +250,14 @@ export class Session<T = any> extends EventEmitter {
         }
     }
 
-    private handleHeartbeat(connection: Context<T>, packet: Partial<StandardPacket>) {
-        this.emit('heartbeat', connection.context);
+    private handleHeartbeat(client: Client, packet: Partial<StandardPacket>) {
+        this.emit('heartbeat', client);
     }
 
-    private handleHeartbeatRequest(connection: Context<T>, packet: Partial<StandardPacket>) {
-        this.transport.send(connection, JSON.stringify({ t: 'hb' }));
-        // connection.send(JSON.stringify({ t: 'hb' }));
-    }
-
-    private handleHeartbeatReceive(connection: Context<T>, packet: Partial<StandardPacket>) {
-        switch (packet.m) {
-            case 'p': // Client requests server to adjust polling rate
-            case 't': // Client requests to adjust client timeout
-            default: // Invalid hbrx message
+    private handleHeartbeatRequest(client: Client, packet: Partial<StandardPacket>) {
+        if (client.heartbeatMode ? client.heartbeatMode : this.defaultHeartbeatMode) {
+            this.transport.send(client.connection, JSON.stringify({ t: 'hb' }));
         }
-        // negotiateHbrx(connection: Context<T>, message: 'p' | 't' | string, data: { min: number, max: number }) {
-        //     if (message === 'p') {
-        //         // Client requests server to adjust polling rate
-        //         if (this.conserveBandwidth) {
-        //             // Set the connection to the highest
-        //             connection.pollRate = Math.min(connection.timeout, Math.max(this.pollRate.maximum, data.max));
-        //             // if (connection.pollRate > Math.max(data.max, ))
-        //         } else {
-
-        //         }
-        //     } else if (message === 't') {
-        //         // Client requests to adjust client timeout
-        //     } else {
-        //         // Invalid hbrx message
-        //     }
-        // }
-    }
-
-    private handleHeartbeatTransmit(connection: Context<T>, packet: Partial<StandardPacket>) {
-
     }
 
     private handleMessage(connection: Context<T>, packet: Partial<StandardPacket>) {
@@ -374,35 +316,6 @@ export class Session<T = any> extends EventEmitter {
         if (typeof packet.t !== 'string') return;
         if (connection.rpcTransactions[packet.t]) {
             connection.rpcTransactions[packet.t].callback(undefined);
-        }
-    }
-
-    public setAuthenticator(authenticator: (connection: Context<T>) => Promise<boolean>) {
-        this.authenticator = authenticator;
-    }
-
-    public requestAuthentication(connection: Context<T>, onAuthenticated: (error?: any) => void) {
-        if (this.authenticator) {
-            this.authenticator(connection)
-                .then((result) => {
-                    if (result) {
-                        this.onConnectionActive(connection);
-                        this.connectionReady(connection);
-                        this.emit('authenticated', connection);
-                        onAuthenticated();
-                    } else {
-                        this.onConnectionInactive(connection);
-                        onAuthenticated('Failed to authenticate');
-                    }
-                })
-                .catch((error) => {
-                    this.onConnectionInactive(connection);
-                    onAuthenticated('Failed to authenticate');
-                });
-        } else {
-            onAuthenticated();
-            this.emit('authenticated', connection);
-
         }
     }
 

@@ -27,8 +27,8 @@ export class Transport extends EventEmitter {
             this.wss = new WebSocket.Server({ server });
         }
 
-        this.wss.on('connection', (connection: WebSocket) => {
-            this.emit('connection', connection);
+        this.wss.on('connection', (connection, request) => {
+            this.emit('connection', connection, request);
 
             connection.on('message', (data) => {
                 this.emit('message', connection, data);

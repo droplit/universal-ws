@@ -1,11 +1,12 @@
 import { Session, Options, Context, StatusCode } from './session';
 import { Server } from 'http';
+import { EventEmitter } from 'events';
 
 export { Context, StatusCode, Options, PerMessageDeflateOptions } from './session';
 
 export type handlerId = string;
 
-export class UniversalWebSocketServer<T = any> {
+export class UniversalWebSocketServer<T = any> extends EventEmitter {
 
     private session: Session;
     private handlersCount = 0;
@@ -17,6 +18,7 @@ export class UniversalWebSocketServer<T = any> {
     } = {};
 
     constructor(server: Server, options?: Options) {
+        super();
         this.session = new Session(server, options);
     }
 
