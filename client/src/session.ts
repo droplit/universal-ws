@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import * as retry from 'retry';
 import { UniversalWs as Transport, StatusCode } from './transport';
+import { PerMessageDeflateOptions } from 'ws';
 
 export { StatusCode } from './transport';
 
@@ -21,111 +22,88 @@ enum PacketType {
     NegotiateSettings
 }
 
+enum HeartbeatMode {
+    upstream = 'upstream',
+    downstream = 'downstream',
+    roundtrip = 'roundtrip',
+    disabled = 'disabled'
+}
+
+enum State {
+    connecting,
+    open,
+    closing,
+    closed
+}
+
+interface ConnectionOptions {
+    connectionTimeout?: number;
+    responseTimeout?: number;
+    username?: string;
+    password?: string;
+    heatbeatInterval?: number;
+    heartbeatMode?: HeartbeatMode;
+    heartbeatModeTimeoutMultiplier?: number | (() => number);
+    autoConnect?: boolean;
+    perMessageDeflateOptions?: PerMessageDeflateOptions;
+    retryOptions?: retry.OperationOptions;
+}
+
 export class Session extends EventEmitter {
     private host: string;
     private transport?: Transport;
     private expires: any;
-    private polls: any;
     private waiting: (() => void)[] = [];
-    private isOpen = false;
-    private conserveBandwidth = false;
-    private pollRateRange = { minimum: 1000, maximum: 10000 };
-    private timeoutRange = { minimum: 20000, maximum: 60000 };
-    private timeout: number;
-    private pollRate: number;
     private rpcTransactions: {
         [transactionId: string]: {
             timer: any;
             callback: (response: any, error?: any) => void;
         }
     } = {};
-    private readonly connectOperation = retry.operation({
-        factor: 1.5,
-        minTimeout: 500,
-        maxTimeout: 5000,
-        randomize: true,
-        forever: true
-    });
+    private connectionTimeout = 60;
+    private responseTimeout = 15;
+    private username: string;
+    private password: string;
+    private heatbeatInterval = 1;
+    private heartbeatMode: HeartbeatMode = HeartbeatMode.roundtrip;
+    private heartbeatModeTimeoutMultiplier: number | (() => number) = 2.5;
+    private autoConnect = true;
+    private perMessageDeflateOptions: PerMessageDeflateOptions;
+    private retryOptions: retry.OperationOptions;
+    private connectOperation: retry.OperationOptions;
 
-    constructor(
-        host: string,
-        options?: {
-            pollRate?: number | { minimum: number, maximum: number },
-            timeout?: number | { minimum: number, maximum: number },
-            conserveBandwidth: boolean;
-        },
-        onConnected?: (connected: boolean) => void
-    ) {
+    constructor(uri: string, options?: ConnectionOptions) {
         super();
 
-        this.host = host;
-        if (options) {
-            if (options.pollRate) {
-                if (typeof options.pollRate === 'number') {
-                    this.pollRateRange.minimum = this.pollRateRange.maximum = options.pollRate;
-                } else if (typeof options.pollRate === 'object'
-                    && options.pollRate !== null
-                    && typeof options.pollRate.minimum === 'number'
-                    && typeof options.pollRate.maximum === 'number'
-                    && options.pollRate.minimum > 0) {
-                    if (options.pollRate.maximum > options.pollRate.minimum) {
-                        this.pollRateRange = options.pollRate;
-                    } else {
-                        throw new Error('Pollrate maximum must be larger than minimum');
-                    }
-                } else {
-                    throw new Error('Pollrate must be a positive integer or an object containing minimum or maximum positive integers');
-                }
-            }
-            if (options.timeout) {
-                if (typeof options.timeout === 'number') {
-                    if (options.timeout > this.pollRateRange.maximum) {
-                        this.timeoutRange.minimum = this.timeoutRange.maximum = options.timeout;
-                    } else {
-                        throw new Error('Timeout must be larger than pollrate maximum');
-                    }
-                } else if (typeof options.timeout === 'object'
-                    && options.timeout !== null
-                    && typeof options.timeout.minimum === 'number'
-                    && typeof options.timeout.maximum === 'number'
-                    && options.timeout.minimum > 0) {
-                    if (options.timeout.maximum > options.timeout.minimum) {
-                        if (options.timeout.maximum > this.pollRateRange.maximum) {
-                            if (options.timeout.minimum > this.pollRateRange.minimum) {
-                                this.timeoutRange = options.timeout;
-                            } else {
-                                throw new Error('Timeout minimum must be larger than pollrate minimum');
-                            }
-                        } else {
-                            throw new Error('Timeout maximum must be larger than pollrate maximum');
-                        }
-                    } else {
-                        throw new Error('Timeout maximum must be larger than minimum');
-                    }
-                } else {
-                    throw new Error('Timeout must be a positive integer or an object containing minimum or maximum positive integers');
-                }
-            }
-            this.conserveBandwidth = options.conserveBandwidth ? true : false;
+        this.host = uri;
+
+        if (!options) options = {}; // Fill if empty
+        if (options.connectionTimeout) this.connectionTimeout = options.connectionTimeout;
+        if (options.responseTimeout) this.responseTimeout = options.responseTimeout;
+        if (options.username) this.username = options.username;
+        if (options.password) this.password = options.password;
+        if (options.heatbeatInterval) this.heatbeatInterval = options.heatbeatInterval;
+        if (options.heartbeatMode) this.heartbeatMode = options.heartbeatMode;
+        if (options.heartbeatModeTimeoutMultiplier) this.heartbeatModeTimeoutMultiplier = options.heartbeatModeTimeoutMultiplier;
+        if (options.autoConnect) this.autoConnect = options.autoConnect;
+        if (options.perMessageDeflateOptions) this.perMessageDeflateOptions = options.perMessageDeflateOptions;
+        this.retryOptions =  options.retryOptions ? options.retryOptions : {
+            
         }
-        this.timeout = this.conserveBandwidth ? this.timeoutRange.maximum : this.timeoutRange.minimum;
-        this.pollRate = this.conserveBandwidth ? this.pollRateRange.maximum : this.pollRateRange.minimum;
 
-        this.start(onConnected);
+        this.connectOperation = retry.operation(this.retryOptions || {
+
+        });
+
+        this.retryConnect();
     }
 
-    private start(onConnected?: (connected: boolean) => void) {
-        this.retryConnect(onConnected);
-    }
-
-    private retryConnect(onConnected?: (connected: boolean) => void) {
+    private retryConnect() {
         this.connectOperation.attempt((currentAttempt: number) => {
             this.restart((connected: boolean, error?: any) => {
                 if (this.connectOperation.retry(error)) {
                     return;
                 }
-
-                if (onConnected) onConnected(connected);
             });
         });
     }
