@@ -5,7 +5,7 @@ import { UniversalWs as Transport, StatusCode } from './transport';
 export { StatusCode } from './transport';
 
 export interface StandardPacket {
-    t?: 'hb' | 'hbr' | 'hbrx' | 'hbtx' | string;
+    t?: 'hb' | 'hbr' | 'ns' | string;
     m: string;
     d: any;
     r?: boolean | string;
@@ -17,7 +17,8 @@ enum PacketType {
     Message,
     Request,
     Response,
-    Acknowledgement
+    Acknowledgement,
+    NegotiateSettings
 }
 
 export class Session extends EventEmitter {
