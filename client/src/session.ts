@@ -52,7 +52,8 @@ interface ConnectionOptions {
 export class Session extends EventEmitter {
     private host: string;
     private transport?: Transport;
-    private expires: any;
+    private heartbeatPolling!: NodeJS.Timer;
+    private expires?: NodeJS.Timer;
     private waiting: (() => void)[] = [];
     private rpcTransactions: {
         [transactionId: string]: {
@@ -62,15 +63,17 @@ export class Session extends EventEmitter {
     } = {};
     private connectionTimeout = 60;
     private responseTimeout = 15;
-    private username: string;
-    private password: string;
+    private username?: string;
+    private password?: string;
     private heatbeatInterval = 1;
     private heartbeatMode: HeartbeatMode = HeartbeatMode.roundtrip;
     private heartbeatModeTimeoutMultiplier: number | (() => number) = 2.5;
     private autoConnect = true;
-    private perMessageDeflateOptions: PerMessageDeflateOptions;
+    private perMessageDeflateOptions?: PerMessageDeflateOptions;
     private retryOptions: retry.OperationOptions;
-    private connectOperation: retry.OperationOptions;
+    private connectOperation: retry.RetryOperation;
+
+    public state: State = State.closed;
 
     constructor(uri: string, options?: ConnectionOptions) {
         super();
@@ -87,33 +90,32 @@ export class Session extends EventEmitter {
         if (options.heartbeatModeTimeoutMultiplier) this.heartbeatModeTimeoutMultiplier = options.heartbeatModeTimeoutMultiplier;
         if (options.autoConnect) this.autoConnect = options.autoConnect;
         if (options.perMessageDeflateOptions) this.perMessageDeflateOptions = options.perMessageDeflateOptions;
-        this.retryOptions =  options.retryOptions ? options.retryOptions : {
-            
-        }
+        this.retryOptions = options.retryOptions ? options.retryOptions : {
+            factor: 1.5,
+            minTimeout: .5 * 1000,
+            maxTimeout: 60 * 1000,
+            randomize: true,
+            forever: true
+        };
 
-        this.connectOperation = retry.operation(this.retryOptions || {
-
-        });
+        this.connectOperation = retry.operation(this.retryOptions);
 
         this.retryConnect();
     }
 
     private retryConnect() {
+        this.state = State.connecting;
         this.connectOperation.attempt((currentAttempt: number) => {
-            this.restart((connected: boolean, error?: any) => {
-                if (this.connectOperation.retry(error)) {
-                    return;
-                }
-            });
+            this.restart();
         });
     }
 
-    private async restart(onConnected?: (connected: boolean) => void) {
+    private async restart() {
         try {
             this.transport = new Transport();
             await this.transport.constructTransport(this.host);
             this.transport.on('open', (data: any) => {
-                this.handleOpen(data, onConnected);
+                this.connectionReady();
             });
             this.transport.on('message', (data: any) => {
                 this.handleMessage(data);
@@ -131,6 +133,7 @@ export class Session extends EventEmitter {
     }
 
     private connectionReady() {
+        this.state = State.open;
         this.emit('connected'); // Connected and ready
         if (this.waiting) {
             this.waiting.forEach((callback) => {
@@ -143,21 +146,24 @@ export class Session extends EventEmitter {
     }
 
     private startHeartbeat() {
-        this.resetTimeout();
-        this.polls = setInterval(() => {
-            // Request a heartbeat from the server
-            this.requestHeartbeat();
-        }, this.pollRate);
+        if (this.heartbeatMode === HeartbeatMode.disabled || this.heartbeatMode === HeartbeatMode.downstream) return;
 
+        // Clear previous heartbeatPolling if restarting
+        if (this.heartbeatPolling) clearInterval(this.heartbeatPolling);
+        this.heartbeatPolling = setInterval(() => {
+            this.heartbeatMode === HeartbeatMode.upstream ? this.sendHeartbeat() : this.requestHeartbeat();
+        }, this.heatbeatInterval * 1000);
+
+        this.resetTimeout();
     }
 
     private stopHeartbeat() {
-        clearTimeout(this.expires);
-        clearInterval(this.polls);
+        if (this.expires) clearTimeout(this.expires);
+        if (this.heartbeatPolling) clearInterval(this.heartbeatPolling);
     }
 
     private awaitReady(callback: () => void) {
-        if (this.isOpen) {
+        if (this.state === State.open) {
             process.nextTick(callback);
         } else {
             this.waiting = this.waiting || [];
@@ -166,13 +172,13 @@ export class Session extends EventEmitter {
     }
 
     private resetTimeout() {
-        // Clear previous if it exists
-        if (this.expires) clearTimeout(this.expires);
-
-        this.expires = setTimeout(() => {
-            // Server has not responded to heartbeat, close connection
-            this.close(1000, 'No response to heartbeat');
-        }, this.timeout); // TODO: CHANGE TO NEGEOTIATED VALUE
+        if (this.expires) {
+            this.expires.refresh();
+        } else {
+            this.expires = setTimeout(() => {
+                this.onConnectionActive()
+            }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
+        }
     }
 
     private getPacketType(packet: StandardPacket) {
@@ -188,6 +194,8 @@ export class Session extends EventEmitter {
             switch (packet.t) {
                 case 'hb': // Server responds to client's heartbeat request
                     return PacketType.Heartbeat;
+                case 'ns': // Server responds to client's negotiate settings
+                    return PacketType.NegotiateSettings
                 default: // Server acknowledges a response from the client
                     return PacketType.Acknowledgement;
             }
@@ -196,18 +204,10 @@ export class Session extends EventEmitter {
         }
     }
 
-    private handleOpen(data: any, onConnected?: (connected: boolean) => void) {
-        this.emit('connection', data); // Connected but not yet ready
-        this.isOpen = true;
-        this.connectionReady();
-        if (onConnected) onConnected(true);
-
-    }
-
     private handleClose(data: { code: StatusCode, reason: string }) {
-        this.transport = undefined; // OR delete this.transport;?
-        if (this.isOpen) {
-            this.isOpen = false;
+        this.transport = undefined; // or delete Transport?
+        if (this.state === State.open) {
+            this.state = State.closing;
             this.stopHeartbeat();
             Object.keys(this.rpcTransactions).forEach((transactionId) => {
                 this.rpcTransactions[transactionId].callback(undefined, 'Connection closed');
@@ -226,9 +226,7 @@ export class Session extends EventEmitter {
 
     private handleError(data: any) {
         this.emit('error', data);
-        this.isOpen = false;
-        this.stopHeartbeat();
-        this.retryConnect();
+        this.onConnectionInactive();
     }
 
     private handleMessage(message: string) {
@@ -269,8 +267,17 @@ export class Session extends EventEmitter {
     }
 
     private onConnectionActive() {
-        if (this.isOpen) {
+        if (this.state === State.open) {
             this.resetTimeout();
+        }
+    }
+
+    private onConnectionInactive(data?: { code: StatusCode, reason: string }) {
+        this.state = State.closing;
+        this.stopHeartbeat();
+        data ? this.emit('disconnected', data.code, data.reason) : this.emit('disconnected');
+        if (this.autoConnect) {
+
         }
     }
 
@@ -328,6 +335,10 @@ export class Session extends EventEmitter {
         if (this.rpcTransactions[packet.t]) {
             this.rpcTransactions[packet.t].callback(undefined);
         }
+    }
+
+    private sendHeartbeat() {
+        if (this.transport) this.transport.send(JSON.stringify({ t: 'hb' }));
     }
 
     private requestHeartbeat() {
