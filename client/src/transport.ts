@@ -24,7 +24,7 @@ export enum StatusCode {
 export class UniversalWs {
     private ws?: import('ws') | WebSocket;
 
-    public async constructTransport(host: string) {
+    public async constructTransport(host: string, options?: any) {
         // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
         if (typeof WebSocket !== 'undefined') {
             this.ws = new WebSocket(host);
@@ -33,7 +33,7 @@ export class UniversalWs {
 
         const ws = await import('ws');
         if (ws) {
-            this.ws = new ws(host);
+            this.ws = new ws(host, options);
             return;
         }
 

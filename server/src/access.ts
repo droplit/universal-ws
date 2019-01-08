@@ -1,114 +1,51 @@
-import { Session, Options, Context, StatusCode } from './session';
+import { Session, Options, StatusCode, Client } from './session';
 import { Server } from 'http';
 import { EventEmitter } from 'events';
 
-export { Context, StatusCode, Options, PerMessageDeflateOptions } from './session';
+export { Client, StatusCode, Options, PerMessageDeflateOptions } from './session';
 
-export type handlerId = string;
+export class UniversalWebSocketServer<Context = any> extends EventEmitter {
 
-export class UniversalWebSocketServer<T = any> extends EventEmitter {
+    private session: Session<Context>;
 
-    private session: Session;
-    private handlersCount = 0;
-    private handlers: {
-        [handlerId: string]: {
-            type: 'connection' | 'connected' | 'close' | string,
-            handler: any
-        }
-    } = {};
+    public clients: Client[];
 
     constructor(server: Server, options?: Options) {
         super();
-        this.session = new Session(server, options);
+        this.session = new Session<Context>(server, options);
+        this.clients = this.session.clients;
+
+        this.session.on('connected', (client: Client<Context>) => {
+            this.emit('connected', client);
+        });
+        this.session.on('disconnected', (client: Client<Context>) => {
+            this.emit('disconnected', client);
+        });
+        this.session.on('message', (message, client: Client<Context>, data) => {
+            this.emit(message, client, data);
+        });
+        this.session.on('message', (message, client: Client<Context>, data) => {
+            this.emit(message, client, data);
+        });
+        this.session.on('request', (message, client: Client<Context>, data, callback: (data: any, ack?: boolean) => Promise<void>) => {
+            this.emit(message, client, data, callback);
+        });
     }
 
-    public removeHandler(handlerId: handlerId) {
-        const handler = this.handlers[handlerId];
-        if (handler) {
-            this.session.removeListener(handler.type, handler.handler);
-        } else {
-
-        }
+    public send(client: Client<Context>, message: string, data: any) {
+        this.session.send(client, message, data);
     }
 
-    public setAuthenticator(authenticator: (connection: Context<T>) => Promise<boolean>) {
-        this.session.setAuthenticator(authenticator);
+    public sendWithAck(client: Client<Context>, message: string, data: any) {
+        return this.session.sendWithAck(client, message, data);
     }
 
-    // Listen for a new connection that is yet to be authenticated nor established
-    public onConnection(handler: (connection: Context<T>) => void): handlerId {
-        const handlerId = this.newListenerId();
-        this.handlers[handlerId] = {
-            type: 'connection',
-            handler
-        };
-        this.session.on('connection', handler);
-        return handlerId;
+    public request(client: Client<Context>, message: string, data: any) {
+        return this.session.request(client, message, data);
     }
 
-    // Listen for a new successful/authenticated connection
-    public onConnected(handler: (connection: Context<T>) => void): handlerId {
-        const handlerId = this.newListenerId();
-        this.handlers[handlerId] = {
-            type: 'connected',
-            handler
-        };
-        this.session.on('connected', handler);
-        return handlerId;
+    public close(client: Client<Context>, code: StatusCode, reason: string) {
+        return this.session.close(client, code, reason);
     }
 
-    // Listen for a closed/dropped connection
-    public onDisconnected(handler: (connection: Context<T>) => void): handlerId {
-        const handlerId = this.newListenerId();
-        this.handlers[handlerId] = {
-            type: 'close',
-            handler
-        };
-        this.session.on('close', handler);
-        return handlerId;
-    }
-
-    // Request a specific connection to authenticate
-    public requestAuthentication(connection: Context<T>, onAuthenticated: (error?: any) => void) {
-        this.session.requestAuthentication(connection, onAuthenticated);
-    }
-
-    // Add a handler for a message
-    public onMessage(message: string, handler: (connection: Context<T>, data: any, context: T) => void): handlerId {
-        const handlerId = this.newListenerId();
-        this.handlers[handlerId] = {
-            type: `@${message}`,
-            handler
-        };
-        this.session.on(`@${message}`, handler);
-        return handlerId;
-    }
-
-    // Add a handler for a request and (optional) receive acknowledgement
-    public onRequest(message: string, handler: (connection: Context<T>, data: any, context: T, callback: (result: any, onAcknowledge?: (response: any, error?: Error) => void, acknowledgementTimeout?: number) => Promise<any>) => void): handlerId {
-        const handlerId = this.newListenerId();
-        this.handlers[handlerId] = {
-            type: `#${message}`,
-            handler
-        };
-        this.session.on(`#${message}`, handler);
-        return handlerId;
-    }
-
-    public sendMessage(connection: Context<T>, message: string, data?: any) {
-        this.session.sendMessage(connection, message, data);
-    }
-
-    public makeRequest(connection: Context<T>, message: string, data: any, callback: (response: any, error?: Error) => void) {
-        this.session.makeRequest(connection, message, data, callback);
-    }
-
-    public close(connection: Context<T>, code: StatusCode, message?: string) {
-        this.session.close(connection, code, message);
-    }
-
-    private newListenerId(): handlerId {
-        if (this.handlersCount === Number.MAX_SAFE_INTEGER) this.handlersCount = 0; // Reset to 0
-        return `${++this.handlersCount}`;
-    }
 }

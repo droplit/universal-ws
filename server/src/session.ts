@@ -34,6 +34,8 @@ interface SupportedOptions {
 }
 
 export interface Connection extends WebSocket {
+    defaultHeartbeatInterval: number;
+    heartbeatTimeoutMultiplier: number | ((client: Client) => number);
     heartbeatMode: HeartbeatMode;
     heartbeatInterval: number;
     rpcTransactions: {
@@ -63,7 +65,7 @@ enum PacketType {
     Acknowledgement
 }
 
-class Client<Context = any> extends EventEmitter {
+export class Client<Context = any> extends EventEmitter {
     private _connection: Connection;
 
     public context: Context | undefined;
@@ -82,6 +84,82 @@ class Client<Context = any> extends EventEmitter {
     }
     public set connection(connection: Connection) {
         this._connection = connection;
+    }
+
+    private getTimeout(): number {
+        return (this._connection.heartbeatInterval || this._connection.defaultHeartbeatInterval) * (typeof this._connection.heartbeatTimeoutMultiplier === 'number' ? this._connection.heartbeatTimeoutMultiplier : this._connection.heartbeatTimeoutMultiplier(this)) * 1000;
+    }
+
+    public send(message: string, data?: any) {
+        const packet: Partial<StandardPacket> = {
+            m: message
+        };
+        if (data) {
+            packet.d = data;
+        }
+        this._connection.send(JSON.stringify(packet));
+    }
+
+    public sendWithAck(message: string, data?: any) {
+        return new Promise((resolve, reject) => {
+            const packet: Partial<StandardPacket> = {
+                m: message
+            };
+            const acknowledgementId: string = ObjectId();
+            packet.i = acknowledgementId; // Only for messages with acknowledgement
+            if (!this._connection.rpcTransactions) this._connection.rpcTransactions = {};
+            this._connection.rpcTransactions[acknowledgementId] = {
+                callback: (response: undefined, error?: Error) => {
+                    clearTimeout(this._connection.rpcTransactions[acknowledgementId].timer);
+                    delete this._connection.rpcTransactions[acknowledgementId];
+                    error ? reject(error) : resolve();
+                },
+                timer: setTimeout(() => {
+                    this._connection.rpcTransactions[acknowledgementId].callback(undefined, new Error('Acknowledgement timed out.'));
+                }, this.getTimeout())
+            };
+            if (data) {
+                packet.d = data;
+            }
+            this._connection.send(JSON.stringify(packet));
+        });
+
+    }
+
+    public request(message: string, data: any = {}) {
+        return new Promise((resolve, reject) => {
+            const requestId: string = ObjectId();
+            const packet: Partial<StandardPacket> = {
+                m: message,
+                d: data,
+                r: requestId
+            };
+
+            this._connection.send(JSON.stringify(packet));
+
+            if (!this._connection.rpcTransactions) this._connection.rpcTransactions = {};
+            this._connection.rpcTransactions[requestId] = {
+                callback: (response: any, error?: Error) => {
+                    // Clear and delete rpc
+                    clearTimeout(this._connection.rpcTransactions[requestId].timer);
+                    delete this._connection.rpcTransactions[requestId];
+
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(response);
+                    }
+                },
+                timer: setTimeout(() => {
+                    // Timed out in acknowledging response
+                    this._connection.rpcTransactions[requestId].callback(undefined, new Error('Response timed out.'));
+                }, this.getTimeout())
+            };
+        });
+    }
+
+    public close(code: StatusCode, message?: string) {
+        this._connection.close(code, message);
     }
 }
 
@@ -134,6 +212,8 @@ export class Session<Context = any> extends EventEmitter {
             this.emit('connected', client);
             client.emit('connected');
             client.state = State.open;
+            client.connection.defaultHeartbeatInterval = this.defaultHeartbeatInterval;
+
         });
 
         this.transport.on('close', (connection: Connection, code: number, message: string) => {
@@ -150,16 +230,16 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     private getClient(connection: Connection) {
-        const index = this.clients.map(client => client.connection).indexOf(connection);
+        const index = this.clients.map((client) => client.connection).indexOf(connection);
         if (index > -1) {
-            return this.clients[index]
+            return this.clients[index];
         } else {
             return undefined;
         }
     }
 
     private getClientTimeout(client: Client) {
-        return (client.connection.heartbeatInterval || this.defaultHeartbeatInterval) * (typeof this.heartbeatTimeoutMultiplier === 'number' ? this.heartbeatTimeoutMultiplier : this.heartbeatTimeoutMultiplier(client)) * 1000
+        return (client.connection.heartbeatInterval || this.defaultHeartbeatInterval) * (typeof this.heartbeatTimeoutMultiplier === 'number' ? this.heartbeatTimeoutMultiplier : this.heartbeatTimeoutMultiplier(client)) * 1000;
     }
 
     private onConnectionActive(client: Client) {
@@ -272,7 +352,7 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     private handleNegotiateSettings(client: Client, packet: Partial<StandardPacket>) {
-        const settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number } = packet.d;
+        const settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number, id: string } = packet.d;
         const callback = (approve: boolean, supportedOptions: SupportedOptions) => {
             if (approve) { // Change settings for new clients
                 if (settings.heartbeatInterval) {
@@ -285,15 +365,16 @@ export class Session<Context = any> extends EventEmitter {
                 if (settings.heartbeatMode) client.connection.heartbeatMode = settings.heartbeatMode;
             }
 
-            this.transport.send(client.connection, JSON.stringify({ t: 'ns', d: { approve, supportedOptions } } as StandardPacket));
+            this.transport.send(client.connection, JSON.stringify({ t: 'ns', d: { approve, supportedOptions, id: settings.id } } as StandardPacket));
         };
         this.emit('negotiate', client, settings, callback);
         client.emit('negotiate', settings, callback);
     }
 
     private handleMessage(client: Client, packet: Partial<StandardPacket>) {
-        this.emit(`@${packet.m}`, client, packet.d);
-        client.emit(`@${packet.m}`, packet.d);
+        // this.emit(`#${packet.m}`, client, packet.d); Must be generic for passsthrough to Access layer
+        this.emit('message', `#${packet.m}`, client, packet.d);
+        client.emit(`#${packet.m}`, packet.d);
 
         if (packet.i) { // Client expects acknowledgement
             this.transport.send(client.connection, JSON.stringify({ t: packet.i }));
@@ -314,7 +395,7 @@ export class Session<Context = any> extends EventEmitter {
                     response.t = acknowledgementId;
                     if (!client.connection.rpcTransactions) client.connection.rpcTransactions = {};
                     client.connection.rpcTransactions[acknowledgementId] = {
-                        callback: (undefined: undefined, error?: Error) => {
+                        callback: (response: undefined, error?: Error) => {
                             clearTimeout(client.connection.rpcTransactions[acknowledgementId].timer);
                             delete client.connection.rpcTransactions[acknowledgementId];
                             error ? reject(error) : resolve();
@@ -322,7 +403,7 @@ export class Session<Context = any> extends EventEmitter {
                         timer: setTimeout(() => {
                             client.connection.rpcTransactions[acknowledgementId].callback(undefined, new Error('Acknowledgement timed out.'));
                         }, this.getClientTimeout(client))
-                    }
+                    };
                     this.transport.send(client.connection, JSON.stringify(response));
                 });
             } else {
@@ -330,8 +411,9 @@ export class Session<Context = any> extends EventEmitter {
                 return;
             }
         };
-        this.emit(`#${packet.m}`, client, packet.d, callback);
-        client.emit(`#${packet.m}`, packet.d, callback);
+        // this.emit(`@${packet.m}`, client, packet.d, callback); Must be generic for passthrough to Access layer
+        this.emit('request', `@${packet.m}`, client, packet.d, callback);
+        client.emit(`@${packet.m}`, packet.d, callback);
     }
 
     private handleResponse(client: Client, packet: Partial<StandardPacket>) {
@@ -379,7 +461,7 @@ export class Session<Context = any> extends EventEmitter {
                 timer: setTimeout(() => {
                     client.connection.rpcTransactions[acknowledgementId].callback(undefined, new Error('Acknowledgement timed out.'));
                 }, this.getClientTimeout(client))
-            }
+            };
             if (data) {
                 packet.d = data;
             }
@@ -408,7 +490,7 @@ export class Session<Context = any> extends EventEmitter {
                     delete client.connection.rpcTransactions[requestId];
 
                     if (error) {
-                        reject(error)
+                        reject(error);
                     } else {
                         resolve(response);
                     }

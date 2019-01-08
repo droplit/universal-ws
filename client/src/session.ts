@@ -3,6 +3,8 @@ import * as retry from 'retry';
 import { UniversalWs as Transport, StatusCode } from './transport';
 import { PerMessageDeflateOptions } from 'ws';
 
+const HOST_REGEX = /^(wss|ws):\/\/(.+)$/;
+
 export { StatusCode } from './transport';
 
 export interface StandardPacket {
@@ -11,6 +13,12 @@ export interface StandardPacket {
     d: any;
     r?: boolean | string;
     i: string;
+}
+
+export interface SupportedOptions {
+    heartbeatModes?: Set<HeartbeatMode> | HeartbeatMode[];
+    minHeartbeatInterval?: number;
+    maxHeartbeatInterval?: number;
 }
 
 enum PacketType {
@@ -22,21 +30,21 @@ enum PacketType {
     NegotiateSettings
 }
 
-enum HeartbeatMode {
+export enum HeartbeatMode {
     upstream = 'upstream',
     downstream = 'downstream',
     roundtrip = 'roundtrip',
     disabled = 'disabled'
 }
 
-enum State {
+export enum State {
     connecting,
     open,
     closing,
     closed
 }
 
-interface ConnectionOptions {
+export interface ConnectionOptions {
     connectionTimeout?: number;
     responseTimeout?: number;
     username?: string;
@@ -62,17 +70,17 @@ export class Session extends EventEmitter {
         }
     } = {};
     private connectionTimeout = 60;
-    private responseTimeout = 15;
+    public responseTimeout = 15;
     private username?: string;
     private password?: string;
-    private heatbeatInterval = 1;
-    private heartbeatMode: HeartbeatMode = HeartbeatMode.roundtrip;
     private heartbeatModeTimeoutMultiplier: number | (() => number) = 2.5;
     private autoConnect = true;
     private perMessageDeflateOptions?: PerMessageDeflateOptions;
     private retryOptions: retry.OperationOptions;
     private connectOperation: retry.RetryOperation;
 
+    public heatbeatInterval = 1;
+    public heartbeatMode: HeartbeatMode = HeartbeatMode.roundtrip;
     public state: State = State.closed;
 
     constructor(uri: string, options?: ConnectionOptions) {
@@ -103,8 +111,13 @@ export class Session extends EventEmitter {
         this.retryConnect();
     }
 
+    private changeState(state: State) {
+        this.state = state;
+        this.emit('state', state);
+    }
+
     private retryConnect() {
-        this.state = State.connecting;
+        this.changeState(State.connecting);
         this.connectOperation.attempt((currentAttempt: number) => {
             this.restart();
         });
@@ -113,7 +126,26 @@ export class Session extends EventEmitter {
     private async restart() {
         try {
             this.transport = new Transport();
-            await this.transport.constructTransport(this.host);
+            if (this.username) {
+                const hostMatch = this.host.match(HOST_REGEX);
+                if (hostMatch) {
+                    setTimeout(async () => {
+                        if (this.transport) {
+                            if (this.password) {
+                                await this.transport.constructTransport(`${hostMatch[1]}://${this.username}:${this.password}@${hostMatch[2]}`);
+                            } else {
+                                await this.transport.constructTransport(`${hostMatch[1]}://${this.username}@${hostMatch[2]}`);
+                            }
+                        }
+                    }, this.connectionTimeout);
+                } else {
+                    throw new Error(`Invalid host: ${this.host}`);
+                }
+            } else {
+                setTimeout(async () => {
+                    if (this.transport) await this.transport.constructTransport(this.host, this.perMessageDeflateOptions);
+                }, this.connectionTimeout);
+            }
             this.transport.on('open', (data: any) => {
                 this.connectionReady();
             });
@@ -133,7 +165,7 @@ export class Session extends EventEmitter {
     }
 
     private connectionReady() {
-        this.state = State.open;
+        this.changeState(State.open);
         this.emit('connected'); // Connected and ready
         if (this.waiting) {
             this.waiting.forEach((callback) => {
@@ -176,7 +208,7 @@ export class Session extends EventEmitter {
             this.expires.refresh();
         } else {
             this.expires = setTimeout(() => {
-                this.onConnectionActive()
+                this.onConnectionActive();
             }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
         }
     }
@@ -195,7 +227,7 @@ export class Session extends EventEmitter {
                 case 'hb': // Server responds to client's heartbeat request
                     return PacketType.Heartbeat;
                 case 'ns': // Server responds to client's negotiate settings
-                    return PacketType.NegotiateSettings
+                    return PacketType.NegotiateSettings;
                 default: // Server acknowledges a response from the client
                     return PacketType.Acknowledgement;
             }
@@ -207,12 +239,12 @@ export class Session extends EventEmitter {
     private handleClose(data: { code: StatusCode, reason: string }) {
         this.transport = undefined; // or delete Transport?
         if (this.state === State.open) {
-            this.state = State.closing;
+            this.changeState(State.closing);
             this.stopHeartbeat();
             Object.keys(this.rpcTransactions).forEach((transactionId) => {
                 this.rpcTransactions[transactionId].callback(undefined, 'Connection closed');
             });
-            this.emit('close', data.code, data.reason);
+            this.emit('disconnected', data.code, data.reason);
             switch (data.code) {
                 case 1008:
                     // Do not reconnect, failed to authenticate
@@ -248,6 +280,9 @@ export class Session extends EventEmitter {
             switch (this.getPacketType(packet)) {
                 case PacketType.Heartbeat: // Heartbeat handled by onConnectionActive
                     break;
+                case PacketType.NegotiateSettings:
+                    this.onNegotiateSettings(packet);
+                    break;
                 case PacketType.Message: // Message from the server
                     this.onMessage(packet);
                     break;
@@ -273,51 +308,62 @@ export class Session extends EventEmitter {
     }
 
     private onConnectionInactive(data?: { code: StatusCode, reason: string }) {
-        this.state = State.closing;
+        this.changeState(State.closing);
         this.stopHeartbeat();
         data ? this.emit('disconnected', data.code, data.reason) : this.emit('disconnected');
         if (this.autoConnect) {
+            this.retryConnect();
+        }
+    }
 
+    private onNegotiateSettings(packet: Partial<StandardPacket>) {
+        // Handle negotiate expecting approval response
+        if (this.rpcTransactions[packet.d.id]) {
+            if (packet.t) { // Client expects acknowledgement of response
+                if (this.transport) this.transport.send(JSON.stringify({ t: packet.t }));
+            }
+            this.rpcTransactions[packet.d.id].callback(packet.d);
         }
     }
 
     private onMessage(packet: Partial<StandardPacket>) {
-        this.emit(`@${packet.m}`, packet.d);
+        this.emit(`#${packet.m}`, packet.d);
     }
 
     private onRequest(packet: Partial<StandardPacket>) {
         // Handle request expecting a response
-        this.emit(`#${packet.m}`, packet.d, (result: any, onAcknowledge?: (response: any, error?: any) => void, acknowledgementTimeout: number = 5000) => {
+        const callback = (data: any, ack?: boolean) => {
             const response: Partial<StandardPacket> = {
                 m: JSON.stringify(packet.m),
-                d: result,
+                d: data,
                 r: JSON.stringify(packet.i)
             };
-            if (onAcknowledge) {
-                const acknowledgementId = this.getNextMessageId().toString();
-                response.t = acknowledgementId;
+            if (ack) {
+                return new Promise((resolve, reject) => {
+                    const acknowledgementId = this.getNextMessageId().toString();
+                    response.t = acknowledgementId;
 
-                this.rpcTransactions[acknowledgementId] = {
-                    callback: (response: any, error?: any) => {
-                        // Clear and delete rpc
-                        clearTimeout(this.rpcTransactions[acknowledgementId].timer);
-                        delete this.rpcTransactions[acknowledgementId];
-                        if (error) {
-                            onAcknowledge(undefined, error);
-                        } else {
-                            onAcknowledge(response);
-                        }
-                    },
-                    timer: setTimeout(() => {
-                        // Timed out in acknowledging response
-                        this.rpcTransactions[acknowledgementId].callback(undefined, 'Acknowledgement timed out');
-                    }, acknowledgementTimeout)
-                };
+                    this.rpcTransactions[acknowledgementId] = {
+                        callback: (response: any, error?: any) => {
+                            // Clear and delete rpc
+                            clearTimeout(this.rpcTransactions[acknowledgementId].timer);
+                            delete this.rpcTransactions[acknowledgementId];
+                            error ? reject(error) : resolve();
+                        },
+                        timer: setTimeout(() => {
+                            // Timed out in acknowledging response
+                            this.rpcTransactions[acknowledgementId].callback(undefined, 'Acknowledgement timed out');
+                        }, this.responseTimeout)
+                    };
+                    if (this.transport) this.transport.send(JSON.stringify(response));
+                });
             } else {
-                return Promise.resolve();
+                if (this.transport) this.transport.send(JSON.stringify(response));
+                return;
             }
-            if (this.transport) this.transport.send(JSON.stringify(response));
-        });
+        };
+
+        this.emit(`@${packet.m}`, packet.d, callback);
     }
 
     private onResponse(packet: Partial<StandardPacket>) {
@@ -352,7 +398,32 @@ export class Session extends EventEmitter {
         return ++this.messageIdSeed;
     }
 
-    public sendMessage(message: string, data?: any) {
+    public negotiate(settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number }) {
+        return new Promise<{ approve: boolean, supportedOptions?: SupportedOptions }>((resolve, reject) => {
+            const packet: Partial<StandardPacket> = {
+                t: 'ns',
+                d: settings
+            };
+            this.awaitReady(() => {
+                const negotiationId: string = this.getNextMessageId().toString();
+                this.rpcTransactions[negotiationId] = {
+                    callback: (response: { approve: boolean, supportedOptions?: SupportedOptions }, error: Error) => {
+                        // Clear and delete rpc
+                        clearTimeout(this.rpcTransactions[negotiationId].timer);
+                        delete this.rpcTransactions[negotiationId];
+                        error ? reject(error) : resolve({ approve: response.approve, supportedOptions: response.supportedOptions });
+                    },
+                    timer: setTimeout(() => {
+                        this.rpcTransactions[negotiationId].callback(undefined, new Error('Negotiation timed out.'));
+                    }, this.responseTimeout)
+                };
+                if (this.transport) this.transport.send(JSON.stringify(packet));
+            });
+
+        });
+    }
+
+    public send(message: string, data?: any) {
         const packet: Partial<StandardPacket> = {
             m: message
         };
@@ -364,43 +435,69 @@ export class Session extends EventEmitter {
         });
     }
 
-    public makeRequest(message: string, data: any = {}, callback: (response: any, error?: any) => void) {
-        const requestId = this.getNextMessageId();
-        const packet = {
-            m: message,
-            d: data,
-            // r: message,
-            r: requestId
-        };
+    public sendWithAck(message: string, data?: any) {
+        return new Promise((resolve, reject) => {
+            const packet: Partial<StandardPacket> = {
+                m: message
+            };
+            if (data) {
+                packet.d = data;
+            }
+            this.awaitReady(() => {
+                const acknowledgementId: string = this.getNextMessageId().toString();
+                this.rpcTransactions[acknowledgementId] = {
+                    callback: (response: any, error: any) => {
+                        // Clear and delete rpc
+                        clearTimeout(this.rpcTransactions[acknowledgementId].timer);
+                        delete this.rpcTransactions[acknowledgementId];
+                        error ? reject(error) : resolve();
+                    },
+                    timer: setTimeout(() => {
+                        this.rpcTransactions[acknowledgementId].callback(undefined, new Error('Acknowledgement timed out.'));
+                    }, this.responseTimeout)
+                };
 
-        this.awaitReady(() => {
-            if (this.transport) this.transport.send(JSON.stringify(packet));
+                if (this.transport) this.transport.send(JSON.stringify(packet));
+            });
+        });
+    }
 
-            this.rpcTransactions[requestId] = {
-                callback: (response: any, error: any) => {
-                    // Clear and delete rpc
-                    clearTimeout(this.rpcTransactions[requestId].timer);
-                    delete this.rpcTransactions[requestId];
-                    if (error) {
-                        callback(undefined, error);
-                    } else {
-                        callback(response);
-                    }
-                },
-                timer: setTimeout(() => {
-                    // Timed out in acknowledging response
-                    this.rpcTransactions[requestId].callback(undefined, 'No response from client connection. Request timed out');
-                }, this.timeout)
+    public request(message: string, data: any = {}) {
+        return new Promise((resolve, reject) => {
+            const requestId = this.getNextMessageId().toString();
+            const packet = {
+                m: message,
+                d: data,
+                r: requestId
             };
 
+            this.awaitReady(() => {
+                if (this.transport) {
+                    this.transport.send(JSON.stringify(packet));
+
+                    this.rpcTransactions[requestId] = {
+                        callback: (response: any, error?: Error) => {
+                            // Clear and delete rpc
+                            clearTimeout(this.rpcTransactions[requestId].timer);
+                            delete this.rpcTransactions[requestId];
+                            error ? reject(error) : resolve();
+                        },
+                        timer: setTimeout(() => {
+                            // Timed out in acknowledging response
+                            this.rpcTransactions[requestId].callback(undefined, new Error('Response timed out.'));
+                        }, this.responseTimeout)
+                    };
+                }
+            });
         });
     }
 
     public close(code?: StatusCode, reason?: string) {
+        this.changeState(State.closing);
         if (this.transport) this.transport.close(code, reason);
 
         // Clean up events
-        this.isOpen = false;
+        this.changeState(State.closed);
         this.stopHeartbeat();
         Object.keys(this.rpcTransactions).forEach((transactionId) => {
             this.rpcTransactions[transactionId].callback(undefined, 'Connection closed');
