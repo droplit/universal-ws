@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "description": "A universal websocket client.",
     "main": "dist/library.js",
-    "types": "dist/library.d.js",
+    "types": "dist/library.d.ts",
     "browser": "browser/universal-ws.js",
     "authors": [
         "Chris Woodle <chris@droplit.io>",

@@ -1,7 +1,7 @@
-import { Session, StatusCode, ConnectionOptions, State, HeartbeatMode } from './session';
+import { Session, StatusCode, ConnectionOptions, State, HeartbeatMode, SupportedOptions } from './session';
 import { EventEmitter } from 'events';
 
-// export { StatusCode, ConnectionOptions } from './session';
+export { StatusCode, ConnectionOptions, SupportedOptions } from './session';
 export class UniversalWebSocket extends EventEmitter {
     private session: Session;
     public state: State = State.closed;
@@ -33,7 +33,10 @@ export class UniversalWebSocket extends EventEmitter {
         });
     }
 
-    public negotiate(settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number }) {
+    public negotiate(settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number }): Promise<{
+        approve: boolean;
+        supportedOptions?: SupportedOptions;
+    }>{
         return this.session.negotiate(settings);
     }
 
