@@ -123,50 +123,44 @@ export class Session extends EventEmitter {
         });
     }
 
-    private async restart() {
-
-        await this.connect();
-        console.log('TRANSPORT EXISTS:', !!this.transport);
-        if (this.transport) {
-            this.transport.on('open', (data: any) => {
-                console.log('CONNECTION OPEN:', data);
-                this.connectionReady();
-            });
-            this.transport.on('message', (data: any) => {
-                console.log('RECEIVED DATA:', data);
-                this.handleMessage(data);
-            });
-            this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
-                this.handleClose(data);
-            });
-            this.transport.on('error', (data: any) => {
-                this.handleError(data);
-            });
-        }
-    }
-
-    private async connect() {
+    private restart() {
         try {
-            this.transport = new Transport();
             if (this.username) {
                 const hostMatch = this.host.match(HOST_REGEX);
                 if (hostMatch) {
-                    setTimeout(async () => {
+                    setTimeout(() => {
                         if (this.transport) {
                             if (this.password) {
-                                await this.transport.constructTransport(`${hostMatch[1]}://${this.username}:${this.password}@${hostMatch[2]}`);
+                                this.transport = new Transport(`${hostMatch[1]}://${this.username}:${this.password}@${hostMatch[2]}`, this.perMessageDeflateOptions);
                             } else {
-                                await this.transport.constructTransport(`${hostMatch[1]}://${this.username}@${hostMatch[2]}`);
+                                this.transport = new Transport(`${hostMatch[1]}://${this.username}@${hostMatch[2]}`, this.perMessageDeflateOptions);
                             }
                         }
-                    }, this.connectionTimeout);
+                    }, this.connectionTimeout * 1000);
                 } else {
                     throw new Error(`Invalid host: ${this.host}`);
                 }
             } else {
-                setTimeout(async () => {
-                    if (this.transport) await this.transport.constructTransport(this.host, this.perMessageDeflateOptions);
-                }, this.connectionTimeout);
+                setTimeout(() => {
+                    this.transport = new Transport(this.host, this.perMessageDeflateOptions);
+                }, this.connectionTimeout * 1000);
+            }
+            console.log('TRANSPORT EXISTS:', !!this.transport);
+            if (this.transport) {
+                this.transport.on('open', (data: any) => {
+                    console.log('CONNECTION OPEN:', data);
+                    this.connectionReady();
+                });
+                this.transport.on('message', (data: any) => {
+                    console.log('RECEIVED DATA:', data);
+                    this.handleMessage(data);
+                });
+                this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
+                    this.handleClose(data);
+                });
+                this.transport.on('error', (data: any) => {
+                    this.handleError(data);
+                });
             }
         } catch (error) {
             // Throw error connecting?

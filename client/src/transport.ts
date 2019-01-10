@@ -1,3 +1,5 @@
+import * as ws from 'ws';
+
 export enum Type {
     Browser,
     Node
@@ -24,16 +26,14 @@ export enum StatusCode {
 export class UniversalWs {
     private ws?: import('ws') | WebSocket;
 
-    public async constructTransport(host: string, options?: any) {
+    constructor(host: string, options?: any) {
         // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
         if (typeof WebSocket !== 'undefined') {
             this.ws = new WebSocket(host);
             return;
         }
 
-        const ws = await import('ws');
         if (ws) {
-            console.log('WS SUCCESSFULLY IMPORTED AND NOW SETTING TO this.ws');
             this.ws = new ws(host, options);
             return;
         }
