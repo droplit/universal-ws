@@ -97,6 +97,7 @@ export class Client<Context = any> extends EventEmitter {
         if (data) {
             packet.d = data;
         }
+        console.log('CLIENT SEND PACKET:', packet);
         this._connection.send(JSON.stringify(packet));
     }
 
@@ -372,8 +373,7 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     private handleMessage(client: Client, packet: Partial<StandardPacket>) {
-        // this.emit(`#${packet.m}`, client, packet.d); Must be generic for passsthrough to Access layer
-        this.emit('message', `#${packet.m}`, client, packet.d);
+        this.emit('message', client, `#${packet.m}`, packet.d);
         client.emit(`#${packet.m}`, packet.d);
 
         if (packet.i) { // Client expects acknowledgement
@@ -411,8 +411,7 @@ export class Session<Context = any> extends EventEmitter {
                 return;
             }
         };
-        // this.emit(`@${packet.m}`, client, packet.d, callback); Must be generic for passthrough to Access layer
-        this.emit('request', `@${packet.m}`, client, packet.d, callback);
+        this.emit('request', client, `@${packet.m}`, packet.d, callback);
         client.emit(`@${packet.m}`, packet.d, callback);
     }
 

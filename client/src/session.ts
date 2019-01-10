@@ -124,6 +124,28 @@ export class Session extends EventEmitter {
     }
 
     private async restart() {
+
+        await this.connect();
+        console.log('TRANSPORT EXISTS:', !!this.transport);
+        if (this.transport) {
+            this.transport.on('open', (data: any) => {
+                console.log('CONNECTION OPEN:', data);
+                this.connectionReady();
+            });
+            this.transport.on('message', (data: any) => {
+                console.log('RECEIVED DATA:', data);
+                this.handleMessage(data);
+            });
+            this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
+                this.handleClose(data);
+            });
+            this.transport.on('error', (data: any) => {
+                this.handleError(data);
+            });
+        }
+    }
+
+    private async connect() {
         try {
             this.transport = new Transport();
             if (this.username) {
@@ -146,18 +168,6 @@ export class Session extends EventEmitter {
                     if (this.transport) await this.transport.constructTransport(this.host, this.perMessageDeflateOptions);
                 }, this.connectionTimeout);
             }
-            this.transport.on('open', (data: any) => {
-                this.connectionReady();
-            });
-            this.transport.on('message', (data: any) => {
-                this.handleMessage(data);
-            });
-            this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
-                this.handleClose(data);
-            });
-            this.transport.on('error', (data: any) => {
-                this.handleError(data);
-            });
         } catch (error) {
             // Throw error connecting?
             throw new Error(`Could not connect to host: ${error}`);
@@ -276,6 +286,8 @@ export class Session extends EventEmitter {
                 // throw?
                 throw new Error('Invalid packet');
             }
+
+            console.log('HANDLING PACKET:', packet);
 
             switch (this.getPacketType(packet)) {
                 case PacketType.Heartbeat: // Heartbeat handled by onConnectionActive

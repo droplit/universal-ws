@@ -21,13 +21,13 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
         this.session.on('disconnected', (client: Client<Context>) => {
             this.emit('disconnected', client);
         });
-        this.session.on('message', (message, client: Client<Context>, data) => {
+        this.session.on('message', (client: Client<Context>, message, data) => {
             this.emit(message, client, data);
         });
-        this.session.on('message', (message, client: Client<Context>, data) => {
+        this.session.on('message', (client: Client<Context>, message, data) => {
             this.emit(message, client, data);
         });
-        this.session.on('request', (message, client: Client<Context>, data, callback: (data: any, ack?: boolean) => Promise<void>) => {
+        this.session.on('request', (client: Client<Context>, message, data, callback: (data: any, ack?: boolean) => Promise<void>) => {
             this.emit(message, client, data, callback);
         });
     }

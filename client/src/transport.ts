@@ -33,6 +33,7 @@ export class UniversalWs {
 
         const ws = await import('ws');
         if (ws) {
+            console.log('WS SUCCESSFULLY IMPORTED AND NOW SETTING TO this.ws');
             this.ws = new ws(host, options);
             return;
         }
@@ -42,6 +43,7 @@ export class UniversalWs {
 
     public on(eventName: 'open' | 'message' | 'close' | 'error', callback: any) {
         if (!this.ws) return;
+        console.log('WS EXISTS');
         if (isBrowser(this.ws)) {
             switch (eventName) {
                 case 'open':
@@ -63,9 +65,10 @@ export class UniversalWs {
                     throw (`Invalid event name ${eventName}`);
             }
         } else {
+            console.log('NODE WS SUBBING TO:', eventName);
             switch (eventName) {
                 case 'open':
-                    this.ws.on('open', () => callback());
+                    this.ws.on('open', () => { console.log('CLIENT IS OPEN NOW'); callback(); });
                     break;
                 case 'message':
                     this.ws.on('message', (data: import('ws').Data) => callback(data));
