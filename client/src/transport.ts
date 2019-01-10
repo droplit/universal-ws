@@ -43,7 +43,6 @@ export class UniversalWs {
 
     public on(eventName: 'open' | 'message' | 'close' | 'error', callback: any) {
         if (!this.ws) return;
-        console.log('WS EXISTS');
         if (isBrowser(this.ws)) {
             switch (eventName) {
                 case 'open':
@@ -51,7 +50,6 @@ export class UniversalWs {
                     break;
                 case 'message':
                     this.ws.addEventListener('message', (event: MessageEvent) => {
-                        // console.log('rx:', event.data)
                         callback(event.data);
                     });
                     break;
@@ -65,10 +63,9 @@ export class UniversalWs {
                     throw (`Invalid event name ${eventName}`);
             }
         } else {
-            console.log('NODE WS SUBBING TO:', eventName);
             switch (eventName) {
                 case 'open':
-                    this.ws.on('open', () => { console.log('CLIENT IS OPEN NOW'); callback(); });
+                    this.ws.on('open', callback);
                     break;
                 case 'message':
                     this.ws.on('message', (data: import('ws').Data) => callback(data));
@@ -86,7 +83,6 @@ export class UniversalWs {
     }
 
     public send(message: string) {
-        // console.log('tx:', message)
         if (!this.ws) return;
         if (isBrowser(this.ws)) {
             this.ws.send(message);
@@ -115,5 +111,5 @@ export class UniversalWs {
 }
 
 function isBrowser(ws: import('ws') | WebSocket): ws is WebSocket {
-    return !!WebSocket && ws instanceof WebSocket;
+    return typeof WebSocket !== 'undefined';
 }

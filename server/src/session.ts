@@ -97,7 +97,6 @@ export class Client<Context = any> extends EventEmitter {
         if (data) {
             packet.d = data;
         }
-        console.log('CLIENT SEND PACKET:', packet);
         this._connection.send(JSON.stringify(packet));
     }
 
@@ -206,7 +205,6 @@ export class Session<Context = any> extends EventEmitter {
                     client.username = username;
                     client.password = password;
                 } else {
-                    console.log('UNEXPECTED AUTH HEADER:', request.headers.authorization);
                 }
             }
 
@@ -245,7 +243,15 @@ export class Session<Context = any> extends EventEmitter {
 
     private onConnectionActive(client: Client) {
         if (client.connection.expires) {
-            client.connection.expires.refresh();
+            try {
+                client.connection.expires.refresh();
+            } catch (error) {
+                // Node 10.2.0 is required so fallback to the old method
+                clearTimeout(client.connection.expires);
+                client.connection.expires = setTimeout(() => {
+                    this.onConnectionInactive(client);
+                }, this.getClientTimeout(client));
+            }
         } else {
             // Initial setup for timeout
             client.connection.expires = setTimeout(() => {

@@ -119,40 +119,29 @@ export class Session extends EventEmitter {
     private retryConnect() {
         this.changeState(State.connecting);
         this.connectOperation.attempt((currentAttempt: number) => {
-            this.restart();
+            this.restart().catch((error) => {
+                if (this.connectOperation.retry(error)) {
+                    return;
+                }
+            });
         });
     }
 
     private restart() {
-        try {
-            if (this.username) {
-                const hostMatch = this.host.match(HOST_REGEX);
-                if (hostMatch) {
-                    setTimeout(() => {
-                        if (this.transport) {
-                            if (this.password) {
-                                this.transport = new Transport(`${hostMatch[1]}://${this.username}:${this.password}@${hostMatch[2]}`, this.perMessageDeflateOptions);
-                            } else {
-                                this.transport = new Transport(`${hostMatch[1]}://${this.username}@${hostMatch[2]}`, this.perMessageDeflateOptions);
-                            }
-                        }
-                    }, this.connectionTimeout * 1000);
-                } else {
-                    throw new Error(`Invalid host: ${this.host}`);
-                }
-            } else {
-                setTimeout(() => {
-                    this.transport = new Transport(this.host, this.perMessageDeflateOptions);
-                }, this.connectionTimeout * 1000);
-            }
-            console.log('TRANSPORT EXISTS:', !!this.transport);
-            if (this.transport) {
+        return new Promise((resolve, reject) => {
+            const connectionTimeout = setTimeout(() => {
+                return reject(new Error('Connection timed out.'));
+            }, this.connectionTimeout * 1000);
+            this.connect().then((transport) => {
+                this.transport = transport;
+                clearTimeout(connectionTimeout);
+                return;
+            }).then(() => {
+                if (!this.transport) return reject(new Error('Failed to connect to host'));
                 this.transport.on('open', (data: any) => {
-                    console.log('CONNECTION OPEN:', data);
                     this.connectionReady();
                 });
                 this.transport.on('message', (data: any) => {
-                    console.log('RECEIVED DATA:', data);
                     this.handleMessage(data);
                 });
                 this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
@@ -161,11 +150,33 @@ export class Session extends EventEmitter {
                 this.transport.on('error', (data: any) => {
                     this.handleError(data);
                 });
+                resolve();
+            }).catch(reject);
+        });
+    }
+
+    private connect() {
+        return new Promise<Transport>((resolve, reject) => {
+            try {
+                if (this.username) {
+                    const hostMatch = this.host.match(HOST_REGEX);
+                    if (hostMatch) {
+                        if (this.password) {
+                            resolve(new Transport(`${hostMatch[1]}://${this.username}:${this.password}@${hostMatch[2]}`, this.perMessageDeflateOptions));
+                        } else {
+                            resolve(new Transport(`${hostMatch[1]}://${this.username}@${hostMatch[2]}`, this.perMessageDeflateOptions));
+                        }
+                    } else {
+                        throw new Error(`Invalid host: ${this.host}`);
+                    }
+                } else {
+                    resolve(new Transport(this.host, this.perMessageDeflateOptions));
+                }
+            } catch (error) {
+                // Throw error connecting?
+                reject(new Error(`Could not connect to host: ${error}`));
             }
-        } catch (error) {
-            // Throw error connecting?
-            throw new Error(`Could not connect to host: ${error}`);
-        }
+        });
     }
 
     private connectionReady() {
@@ -209,7 +220,15 @@ export class Session extends EventEmitter {
 
     private resetTimeout() {
         if (this.expires) {
-            this.expires.refresh();
+            try {
+                this.expires.refresh();
+            } catch (error) {
+                // Node 10.2.0 is required so fallback to the old method
+                clearTimeout(this.expires);
+                this.expires = setTimeout(() => {
+                    this.onConnectionActive();
+                }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
+            }
         } else {
             this.expires = setTimeout(() => {
                 this.onConnectionActive();
@@ -281,8 +300,6 @@ export class Session extends EventEmitter {
                 throw new Error('Invalid packet');
             }
 
-            console.log('HANDLING PACKET:', packet);
-
             switch (this.getPacketType(packet)) {
                 case PacketType.Heartbeat: // Heartbeat handled by onConnectionActive
                     break;
@@ -333,7 +350,7 @@ export class Session extends EventEmitter {
     }
 
     private onMessage(packet: Partial<StandardPacket>) {
-        this.emit(`#${packet.m}`, packet.d);
+        this.emit('message', `#${packet.m}`, packet.d);
     }
 
     private onRequest(packet: Partial<StandardPacket>) {
@@ -369,7 +386,7 @@ export class Session extends EventEmitter {
             }
         };
 
-        this.emit(`@${packet.m}`, packet.d, callback);
+        this.emit('request', `@${packet.m}`, packet.d, callback);
     }
 
     private onResponse(packet: Partial<StandardPacket>) {

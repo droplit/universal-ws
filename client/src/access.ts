@@ -17,7 +17,6 @@ export class UniversalWebSocket extends EventEmitter {
         this.responseTimeout = this.session.responseTimeout;
 
         this.session.on('connected', () => {
-            console.log('CLIENT IS NOW CONNECTED');
             this.emit('connected');
         });
         this.session.on('disconnected', (code?: StatusCode, reason?: string) => {
