@@ -220,15 +220,11 @@ export class Session extends EventEmitter {
 
     private resetTimeout() {
         if (this.expires) {
-            try {
-                this.expires.refresh();
-            } catch (error) {
-                // Node 10.2.0 is required so fallback to the old method
-                clearTimeout(this.expires);
-                this.expires = setTimeout(() => {
-                    this.onConnectionActive();
-                }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
-            }
+            // Node 10.2.0: this.expires.refresh(); 
+            clearTimeout(this.expires);
+            this.expires = setTimeout(() => {
+                this.onConnectionActive();
+            }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
         } else {
             this.expires = setTimeout(() => {
                 this.onConnectionActive();

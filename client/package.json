@@ -2,6 +2,9 @@
     "name": "universal-ws",
     "version": "0.1.0",
     "description": "A universal websocket client.",
+    "engines": {
+        "node": ">=4.2.0"
+    },
     "main": "dist/library.js",
     "types": "dist/library.d.ts",
     "browser": "browser/universal-ws.js",
@@ -45,7 +48,7 @@
         "webpack-cli": "^3.1.2"
     },
     "dependencies": {
-        "@types/node": "^10.1.2",
+        "@types/node": "4.2.0",
         "@types/retry": "^0.10.2",
         "@types/ws": "^5.1.1",
         "retry": "^0.12.0"
