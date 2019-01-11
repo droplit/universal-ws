@@ -2,5 +2,9 @@ node_modules
 dist
 browser
 
+*.log
+
 .DS_Store
-npm-debug.log
+
+# nightwatch
+tests_output

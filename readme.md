@@ -24,5 +24,26 @@ This library is comprised of a client and server module:
 * [Client Docs](./client/)
 * [Server Docs](./server/) 
 
-   
+## Testing
 
+### run all tests
+```
+npm test
+```
+> To run browser tests, install optional dependencies
+
+### Unit tests
+```
+npm run unit-test
+```
+
+### System tests
+```
+npm run system-test
+```
+
+### Browser tests
+```
+npm install nightwatch chromedriver
+npm run browser-test
+```

@@ -23,9 +23,11 @@
         "tslint-client": "cd client && npm run tslint",
         "tslint-server": "cd server && npm run tslint",
         "tslint": "npm run tslint-client && npm run tslint-server",
-        "test": "npm run test-client && npm run test-server && npm run system-test",
+        "test": "npm run unit-test && npm run system-test && npm run browser-test",
         "test-client": "cd client && npm test",
         "test-server": "cd client && npm test",
+        "unit-test": "npm run test-client && npm run test-server",
+        "browser-test": "nightwatch",
         "system-test": "cd test && mocha -r ts-node/register -r source-map-support/register **/*.ts",
         "watch-client": "cd client && npm run watch",
         "watch-server": "cd server && npm run watch"
@@ -40,5 +42,9 @@
         "source-map-support": "^0.5.6",
         "ts-node": "^7.0.0",
         "typescript": "^3.2.2"
+    },
+    "optionalDependencies": {
+        "chromedriver": "^2.45.0",
+        "nightwatch": "^1.0.18"
     }
 }
