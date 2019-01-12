@@ -24,24 +24,30 @@
         "tslint-server": "cd server && npm run tslint",
         "tslint": "npm run tslint-client && npm run tslint-server",
         "test": "npm run unit-test && npm run system-test && npm run browser-test",
+        "pretest": "npm run build",
         "test-client": "cd client && npm test",
         "test-server": "cd client && npm test",
         "unit-test": "npm run test-client && npm run test-server",
-        "browser-test": "nightwatch",
-        "system-test": "cd test && mocha -r ts-node/register -r source-map-support/register **/*.ts",
+        "webpack-browser-test": "cd ./test/browser && webpack --config ./webpack.config.js",
+        "browser-test": "npm run webpack-browser-test && nightwatch ./test/browser/nightwatch.js",
+        "system-test": "cd test/system && mocha -r ts-node/register -r source-map-support/register **/*.ts",
         "watch-client": "cd client && npm run watch",
         "watch-server": "cd server && npm run watch"
     },
     "dependencies": {
         "@types/chai": "^4.1.4",
         "@types/mocha": "^5.2.2",
+        "@types/nightwatch": "^0.9.11",
         "@types/node": "^10.1.2",
         "chai": "^4.1.2",
+        "express": "^4.16.4",
         "mocha": "^5.2.0",
         "rimraf": "^2.6.2",
         "source-map-support": "^0.5.6",
         "ts-node": "^7.0.0",
-        "typescript": "^3.2.2"
+        "typescript": "^3.2.2",
+        "webpack": "^4.28.4",
+        "webpack-cli": "^3.2.1"
     },
     "optionalDependencies": {
         "chromedriver": "^2.45.0",

@@ -1,5 +1,3 @@
-import * as ws from 'ws';
-
 export enum Type {
     Browser,
     Node
@@ -32,13 +30,15 @@ export class UniversalWs {
             this.ws = new WebSocket(host);
             return;
         }
-
-        if (ws) {
-            this.ws = new ws(host, options);
-            return;
+        try {
+            const ws = require('ws');
+            if (ws) {
+                this.ws = new ws(host, options);
+                return;
+            }
+        } catch {
+            throw new Error('Cannot construct WebSocket! Your environment may not support web sockets. See: https://caniuse.com/#feat=websockets');
         }
-
-        throw new Error('Cannot construct WebSocket! Your environment may not support web sockets. See: https://caniuse.com/#feat=websockets');
     }
 
     public on(eventName: 'open' | 'message' | 'close' | 'error', callback: any) {
