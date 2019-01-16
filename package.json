@@ -32,7 +32,8 @@
         "browser-test": "npm run webpack-browser-test && nightwatch ./test/browser/nightwatch.js",
         "system-test": "cd test/system && mocha -r ts-node/register -r source-map-support/register **/*.ts",
         "watch-client": "cd client && npm run watch",
-        "watch-server": "cd server && npm run watch"
+        "watch-server": "cd server && npm run watch",
+        "publish": "cd ./server && npm publish && cd ../client && npm publish"
     },
     "dependencies": {
         "@types/chai": "^4.1.4",
