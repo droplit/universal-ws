@@ -220,7 +220,7 @@ export class Session extends EventEmitter {
 
     private resetTimeout() {
         if (this.expires) {
-            // Node 10.2.0: this.expires.refresh(); 
+            // Node 10.2.0: this.expires.refresh();
             clearTimeout(this.expires);
             this.expires = setTimeout(() => {
                 this.onConnectionActive();
