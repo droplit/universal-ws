@@ -44,6 +44,6 @@ npm run system-test
 
 ### Browser tests
 ```
-npm install nightwatch chromedriver
+npm install nightwatch chromedriver -G
 npm run browser-test
 ```

@@ -7,6 +7,23 @@ app.use('/', express.static(__dirname + '/'));
 app.use('/node_modules', express.static(path.resolve(__dirname + '../../../node_modules')));
 const server = app.listen(port, () => console.log(`Running test server on port ${port}!`))
 
+
+const chalk = require('chalk');
+const { spawn } = require('child_process');
+const child = spawn('mocha', [path.resolve(__dirname, './server.js')], { 'stdio': 'pipe' });
+
+child.stdout.on('data', (data) => {
+    console.log(chalk.yellow(data));
+});
+
+child.stderr.on('data', (data) => {
+    console.log(chalk.red(data));
+});
+
+child.on('close', (code) => {
+    console.log(chalk.blue(`child process exited with code ${code}`));
+});
+
 // Execute browser
 const { expect } = require('chai');
 describe('Mocha with Nightwatch', function () {
@@ -32,5 +49,6 @@ describe('Mocha with Nightwatch', function () {
                 browser.waitForElementVisible('#holdBrowserOpenPlease', 1000000);
             }
         });
+
     });
 });
