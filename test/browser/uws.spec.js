@@ -30,7 +30,7 @@ describe('Universal WS', function () {
     });
 
     it(`Initialize an authenticated client by connecting to port ${AUTHENTICATED_PORT}`, function (done) {
-        const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, { username: 'boats', password: 'USS History Supreme' });
+        const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, { username: 'boats', password: 'USS-History-Supreme' });
         expect(client).to.exist;
         clients.push(client);
         done();

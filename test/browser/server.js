@@ -60,7 +60,7 @@ describe('Universal WS Server', function () {
             expect(client.username).to.exist;
             console.log(`Client ${client.username} connected. Their password is ${client.password}`);
             expect(client.username).to.equal('boats');
-            expect(client.password).to.equal('USS History Supreme');
+            expect(client.password).to.equal('USS-History-Supreme');
 
             authenticatedClients.push(client);
             done();
