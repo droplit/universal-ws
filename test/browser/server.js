@@ -9,7 +9,7 @@ const PORT = 3005;
 const AUTHENTICATED_PORT = 3006;
 
 describe('Universal WS Server', function () {
-    this.timeout(10 * 1000);
+    this.timeout(15 * 1000);
 
     let httpServer;
     let uws;
@@ -19,7 +19,7 @@ describe('Universal WS Server', function () {
     const authenticatedClients = [];
 
     beforeEach(function (done) {
-        setTimeout(done, 1000)
+        setTimeout(done, 500)
     });
 
     it(`Initialize the server with port ${PORT}`, function (done) {

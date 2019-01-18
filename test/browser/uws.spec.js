@@ -7,7 +7,7 @@ const AUTHENTICATED_PORT = 3006;
 const clients = [];
 
 describe('Universal WS', function () {
-    this.timeout(10000);
+    this.timeout(15000);
 
     beforeEach(function (done) {
         setTimeout(function () {
@@ -25,15 +25,19 @@ describe('Universal WS', function () {
     it(`Initialize a client by connecting to port ${PORT}`, function (done) {
         const client = new UniversalWebSocket(`ws://localhost:${PORT}`);
         expect(client).to.exist;
-        clients.push(client);
-        done();
+        client.on('connected', () => {
+            done();
+            client.close();
+        })
     });
 
     it(`Initialize an authenticated client by connecting to port ${AUTHENTICATED_PORT}`, function (done) {
         const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, { username: 'boats', password: 'USS-History-Supreme' });
         expect(client).to.exist;
-        clients.push(client);
-        done();
+        client.on('connected', () => {
+            done();
+            client.close();
+        })
     });
     it('fail', function (done) {
         expect(null).to.exist;
