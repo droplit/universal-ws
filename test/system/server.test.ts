@@ -53,10 +53,8 @@ describe('Universal WS Server', function () {
     it(`Handle a new authenticated client connecting`, function (done) {
         authenticatedUws.on('connected', (client: Client) => {
             expect(client).to.exist;
-            expect(client.username).to.exist;
-            console.log(`Client ${client.username} connected. Their password is ${client.password}`);
-            expect(client.username).to.equal('boats');
-            expect(client.password).to.equal('USS History Supreme');
+            console.log(`Client connected. Their token is ${client.token}`);
+            expect(client.token).to.equal('USS-History-Supreme');
 
             authenticatedClients.push(client);
             done();
