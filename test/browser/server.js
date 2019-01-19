@@ -38,6 +38,7 @@ describe('Universal WS Server', function () {
         uws.on('connected', (client) => {
             expect(client).to.exist;
             clients.push(client);
+            httpServer.close();
             done();
         });
     });
@@ -48,7 +49,7 @@ describe('Universal WS Server', function () {
         authenticatedHttpServer.listen(AUTHENTICATED_PORT, () => {
             console.log('Authenticated Server listening to port:', AUTHENTICATED_PORT);
         });
-        authenticatedUws = new UniversalWebSocketServer(httpServer);
+        authenticatedUws = new UniversalWebSocketServer(authenticatedHttpServer);
         expect(authenticatedUws).to.exist;
 
         done();
@@ -57,10 +58,9 @@ describe('Universal WS Server', function () {
     it(`Handle a new authenticated client connecting`, function (done) {
         authenticatedUws.on('connected', (client) => {
             expect(client).to.exist;
-            expect(client.username).to.exist;
-            console.log(`Client ${client.username} connected. Their password is ${client.password}`);
-            expect(client.username).to.equal('boats');
-            expect(client.password).to.equal('USS-History-Supreme');
+            console.log(`Client connected. Their token is ${client.token}`);
+            expect(client.token).to.exist;
+            expect(client.token).to.equal('USS-History-Supreme');
 
             authenticatedClients.push(client);
             done();
