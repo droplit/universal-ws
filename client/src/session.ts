@@ -45,7 +45,6 @@ export enum State {
 export interface ConnectionOptions {
     connectionTimeout?: number;
     responseTimeout?: number;
-    token?: string;
     heatbeatInterval?: number;
     heartbeatMode?: HeartbeatMode;
     heartbeatModeTimeoutMultiplier?: number | (() => number);
@@ -55,7 +54,6 @@ export interface ConnectionOptions {
 }
 
 export class Session extends EventEmitter {
-    private host: string;
     private transport?: Transport;
     private heartbeatPolling!: NodeJS.Timer;
     private expires?: NodeJS.Timer;
@@ -68,7 +66,7 @@ export class Session extends EventEmitter {
     } = {};
     private connectionTimeout = 60;
     public responseTimeout = 15;
-    private token?: string;
+    private parameters?: string[];
     private heartbeatModeTimeoutMultiplier: number | (() => number) = 2.5;
     private autoConnect = true;
     private perMessageDeflateOptions?: PerMessageDeflateOptions;
@@ -79,15 +77,12 @@ export class Session extends EventEmitter {
     public heartbeatMode: HeartbeatMode = HeartbeatMode.roundtrip;
     public state: State = State.closed;
 
-    constructor(uri: string, options?: ConnectionOptions) {
+    constructor(private host: string, options?: ConnectionOptions, ...parameters: string[]) {
         super();
-
-        this.host = uri;
 
         if (!options) options = {}; // Fill if empty
         if (options.connectionTimeout) this.connectionTimeout = options.connectionTimeout;
         if (options.responseTimeout) this.responseTimeout = options.responseTimeout;
-        if (options.token) this.token = options.token;
         if (options.heatbeatInterval) this.heatbeatInterval = options.heatbeatInterval;
         if (options.heartbeatMode) this.heartbeatMode = options.heartbeatMode;
         if (options.heartbeatModeTimeoutMultiplier) this.heartbeatModeTimeoutMultiplier = options.heartbeatModeTimeoutMultiplier;
@@ -100,6 +95,7 @@ export class Session extends EventEmitter {
             randomize: true,
             forever: true
         };
+        if (parameters && parameters.length) this.parameters = parameters;
 
         this.connectOperation = retry.operation(this.retryOptions);
 
@@ -153,7 +149,7 @@ export class Session extends EventEmitter {
     private connect() {
         return new Promise<Transport>((resolve, reject) => {
             try {
-                resolve(new Transport(this.host, { token: this.token, perMessageDeflateOptions: this.perMessageDeflateOptions }));
+                resolve(new Transport(this.host, { parameters: this.parameters, perMessageDeflateOptions: this.perMessageDeflateOptions }));
             } catch (error) {
                 // Throw error connecting?
                 reject(new Error(`Could not connect to host: ${error}`));

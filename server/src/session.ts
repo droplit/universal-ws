@@ -70,7 +70,7 @@ export class Client<Context = any> extends EventEmitter {
 
     public context: Context | undefined;
     public lastHeartbeat: Date | undefined;
-    public token: string | undefined;
+    public parameters?: string[];
     public state: State | undefined;
 
     constructor(connection: Connection) {
@@ -198,8 +198,8 @@ export class Session<Context = any> extends EventEmitter {
             this.onConnectionActive(client);
             // Set up authentication info
 
-            if (request.headers[`sec-websocket-protocol`]) {
-                client.token = request.headers[`sec-websocket-protocol`] as string;
+            if (request.headers[`sec-websocket-protocol`] && typeof request.headers[`sec-websocket-protocol`] === 'string') {
+                client.parameters = this.decodeParameters(request.headers[`sec-websocket-protocol`] as string);
             }
 
             this.emit('connected', client);
@@ -220,6 +220,10 @@ export class Session<Context = any> extends EventEmitter {
             const client = this.getClient(connection);
             if (client) this.onMessage(client, data);
         });
+    }
+
+    private decodeParameters(encodedParameters: string) {
+        return encodedParameters.split('$').filter((parameter, index) => index % 2);
     }
 
     private getClient(connection: Connection) {

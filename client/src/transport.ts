@@ -24,21 +24,27 @@ export enum StatusCode {
 export class UniversalWs {
     private ws?: import('ws') | WebSocket;
 
-    constructor(host: string, options: { token?: string, perMessageDeflateOptions?: any }) {
+    constructor(host: string, options: { parameters?: string[], perMessageDeflateOptions?: any }) {
         // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
         if (typeof WebSocket !== 'undefined') {
-            this.ws = options.token ? new WebSocket(host, [options.token]) : new WebSocket(host);
+            this.ws = options.parameters ? new WebSocket(host, [this.encodeParameters(options.parameters)]) : new WebSocket(host);
             return;
         }
         try {
             const ws = require('ws');
             if (ws) {
-                this.ws = options.token ? new ws(host, [options.token], options.perMessageDeflateOptions) : new ws(host, options.perMessageDeflateOptions);
+                this.ws = options.parameters ? new ws(host, [this.encodeParameters(options.parameters)], options.perMessageDeflateOptions) : new ws(host, options.perMessageDeflateOptions);
                 return;
             }
         } catch {
             throw new Error('Cannot construct WebSocket! Your environment may not support web sockets. See: https://caniuse.com/#feat=websockets');
         }
+    }
+
+    private encodeParameters(parameters: string[]) {
+        return parameters.reduce((encodedParameters, parameter) => {
+            return `${encodedParameters}$${Buffer.from(parameter, 'utf8').toString('base64')}$`;
+        }, '');
     }
 
     public on(eventName: 'open' | 'message' | 'close' | 'error', callback: any) {

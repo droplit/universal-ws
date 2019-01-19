@@ -9,9 +9,9 @@ export class UniversalWebSocket extends EventEmitter {
     public readonly heartbeatInterval: number;
     public responseTimeout: number;
 
-    constructor(host: string, connectionOptions?: ConnectionOptions) {
+    constructor(host: string, connectionOptions?: ConnectionOptions, ...parameters: string[]) {
         super();
-        this.session = new Session(host, connectionOptions);
+        this.session = new Session(host, connectionOptions, ...parameters);
         this.heartbeatMode = this.session.heartbeatMode;
         this.heartbeatInterval = this.session.heatbeatInterval;
         this.responseTimeout = this.session.responseTimeout;
