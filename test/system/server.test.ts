@@ -44,7 +44,7 @@ describe('Universal WS Server', function () {
         authenticatedHttpServer.listen(AUTHENTICATED_PORT, () => {
             console.log('Authenticated Server listening to port:', AUTHENTICATED_PORT);
         });
-        authenticatedUws = new UniversalWebSocketServer(httpServer);
+        authenticatedUws = new UniversalWebSocketServer(authenticatedHttpServer);
         expect(authenticatedUws).to.exist;
 
         done();
