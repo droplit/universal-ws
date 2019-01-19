@@ -1,3 +1,6 @@
+const bs58 = require('bs58');
+const DELIMITER = '$';
+
 export enum Type {
     Browser,
     Node
@@ -42,9 +45,7 @@ export class UniversalWs {
     }
 
     private encodeParameters(parameters: string[]) {
-        return parameters.reduce((encodedParameters, parameter) => {
-            return `${encodedParameters}$${Buffer.from(parameter, 'utf8').toString('base64')}$`;
-        }, '');
+        return bs58.encode(Buffer.from(parameters.join(DELIMITER), 'utf8'));
     }
 
     public on(eventName: 'open' | 'message' | 'close' | 'error', callback: any) {

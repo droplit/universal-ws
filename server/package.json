@@ -1,6 +1,6 @@
 {
     "name": "universal-ws-server",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "The server for universal-ws.",
     "main": "dist/library.js",
     "types": "dist/library.d.js",
@@ -43,6 +43,7 @@
     "dependencies": {
         "@types/node": "^10.1.2",
         "@types/ws": "^5.1.1",
+        "bs58": "^4.0.1",
         "bson-objectid": "^1.2.3",
         "ws": "^5.2.0"
     }

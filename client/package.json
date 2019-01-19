@@ -1,6 +1,6 @@
 {
     "name": "universal-ws",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "A universal websocket client.",
     "engines": {
         "node": ">=4.2.0"
@@ -51,6 +51,7 @@
         "@types/node": "4.2.0",
         "@types/retry": "^0.10.2",
         "@types/ws": "^5.1.1",
+        "bs58": "^4.0.1",
         "retry": "^0.12.0"
     },
     "optionalDependencies": {
