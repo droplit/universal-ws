@@ -18,7 +18,7 @@ describe('WebSockets', function () {
     });
 
     it(`Initialize an authenticated client by connecting to port ${AUTHENTICATED_PORT}`, function (done) {
-        const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, { token: 'USS-History-Supreme' });
+        const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, {}, 'Boats', 'USS-History-Supreme');
         expect(client).to.exist;
         clients.push(client);
         done();
