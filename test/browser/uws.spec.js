@@ -23,11 +23,8 @@ describe('Universal WS', function () {
         }, 1000);
     });
 
-
     it(`Initialize a client by connecting to port ${PORT}`, function (done) {
-        const host = `ws://localhost:${PORT}`;
-        console.log('Connecting to host:', host);
-        const client = new UniversalWebSocket(host);
+        const client = new UniversalWebSocket(`ws://localhost:${PORT}`);
         expect(client).to.exist;
         client.on('connected', () => {
             done();
@@ -36,13 +33,17 @@ describe('Universal WS', function () {
     });
 
     it(`Initialize an authenticated client by connecting to port ${AUTHENTICATED_PORT}`, function (done) {
-        const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, { token: 'USS-History-Supreme' });
+        const client = new UniversalWebSocket(`ws://localhost:${AUTHENTICATED_PORT}`, {}, 'Boats', 'USS-History-Supreme');
         expect(client).to.exist;
         client.on('connected', () => {
             done();
             client.close();
+        });
+        client.on('error', (error)=>{
+            console.warn(error);
         })
     });
+
     it('fail', function (done) {
         expect(null).to.exist;
         done("blah");

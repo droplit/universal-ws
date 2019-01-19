@@ -31,6 +31,9 @@ export class UniversalWebSocket extends EventEmitter {
         this.session.on('state', (state: State) => {
             this.state = state;
         });
+        this.session.on('error', (error: any) => {
+            this.emit('error', error);
+        });
     }
 
     public negotiate(settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number }) {

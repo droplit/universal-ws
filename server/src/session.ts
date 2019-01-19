@@ -3,6 +3,9 @@ import * as http from 'http';
 import { Transport, StatusCode } from './transport';
 import * as WebSocket from 'ws';
 
+const bs58 = require('bs58');
+const DELIMITER = '$';
+
 const ObjectId = require('bson-objectid');
 
 export { StatusCode } from './transport';
@@ -223,7 +226,7 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     private decodeParameters(encodedParameters: string) {
-        return encodedParameters.split('$').filter((parameter, index) => index % 2);
+        return Buffer.from(bs58.decode(encodedParameters)).toString('utf8').split(DELIMITER);
     }
 
     private getClient(connection: Connection) {
