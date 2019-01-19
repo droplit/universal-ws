@@ -27,13 +27,13 @@ export class UniversalWs {
     constructor(host: string, options?: any) {
         // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
         if (typeof WebSocket !== 'undefined') {
-            this.ws = new WebSocket(host);
+            this.ws = new WebSocket(host, ['token_here']);
             return;
         }
         try {
             const ws = require('ws');
             if (ws) {
-                this.ws = new ws(host, options);
+                this.ws = new ws(host, ['token_here'] , options);
                 return;
             }
         } catch {
