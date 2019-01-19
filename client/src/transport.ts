@@ -24,16 +24,16 @@ export enum StatusCode {
 export class UniversalWs {
     private ws?: import('ws') | WebSocket;
 
-    constructor(host: string, options?: any) {
+    constructor(host: string, options: { token?: string, perMessageDeflateOptions?: any }) {
         // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
         if (typeof WebSocket !== 'undefined') {
-            this.ws = new WebSocket(host, ['token_here']);
+            this.ws = options.token ? new WebSocket(host, [options.token]) : new WebSocket(host);
             return;
         }
         try {
             const ws = require('ws');
             if (ws) {
-                this.ws = new ws(host, ['token_here'] , options);
+                this.ws = options.token ? new ws(host, [options.token], options.perMessageDeflateOptions) : new ws(host, options.perMessageDeflateOptions);
                 return;
             }
         } catch {

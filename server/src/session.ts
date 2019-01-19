@@ -70,8 +70,7 @@ export class Client<Context = any> extends EventEmitter {
 
     public context: Context | undefined;
     public lastHeartbeat: Date | undefined;
-    public username: string | undefined;
-    public password: string | undefined;
+    public token: string | undefined;
     public state: State | undefined;
 
     constructor(connection: Connection) {
@@ -198,14 +197,9 @@ export class Session<Context = any> extends EventEmitter {
             // Set up connection expiration and start timeout
             this.onConnectionActive(client);
             // Set up authentication info
-            if (request.headers.authorization) {
-                if (request.headers.authorization.startsWith('Basic ')) {
-                    const decodedAuth = Buffer.from(request.headers.authorization.replace('Basic ', ''), 'base64').toString();
-                    const [username, password] = decodedAuth.split(':');
-                    client.username = username;
-                    client.password = password;
-                } else {
-                }
+
+            if (request.headers[`sec-websocket-protocol`]) {
+                client.token = request.headers[`sec-websocket-protocol`] as string;
             }
 
             this.emit('connected', client);

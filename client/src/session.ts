@@ -3,8 +3,6 @@ import * as retry from 'retry';
 import { UniversalWs as Transport, StatusCode } from './transport';
 import { PerMessageDeflateOptions } from 'ws';
 
-const HOST_REGEX = /^(wss|ws):\/\/(.+)$/;
-
 export { StatusCode } from './transport';
 
 export interface StandardPacket {
@@ -47,8 +45,7 @@ export enum State {
 export interface ConnectionOptions {
     connectionTimeout?: number;
     responseTimeout?: number;
-    username?: string;
-    password?: string;
+    token?: string;
     heatbeatInterval?: number;
     heartbeatMode?: HeartbeatMode;
     heartbeatModeTimeoutMultiplier?: number | (() => number);
@@ -71,8 +68,7 @@ export class Session extends EventEmitter {
     } = {};
     private connectionTimeout = 60;
     public responseTimeout = 15;
-    private username?: string;
-    private password?: string;
+    private token?: string;
     private heartbeatModeTimeoutMultiplier: number | (() => number) = 2.5;
     private autoConnect = true;
     private perMessageDeflateOptions?: PerMessageDeflateOptions;
@@ -91,8 +87,7 @@ export class Session extends EventEmitter {
         if (!options) options = {}; // Fill if empty
         if (options.connectionTimeout) this.connectionTimeout = options.connectionTimeout;
         if (options.responseTimeout) this.responseTimeout = options.responseTimeout;
-        if (options.username) this.username = options.username;
-        if (options.password) this.password = options.password;
+        if (options.token) this.token = options.token;
         if (options.heatbeatInterval) this.heatbeatInterval = options.heatbeatInterval;
         if (options.heartbeatMode) this.heartbeatMode = options.heartbeatMode;
         if (options.heartbeatModeTimeoutMultiplier) this.heartbeatModeTimeoutMultiplier = options.heartbeatModeTimeoutMultiplier;
@@ -158,20 +153,7 @@ export class Session extends EventEmitter {
     private connect() {
         return new Promise<Transport>((resolve, reject) => {
             try {
-                if (this.username) {
-                    const hostMatch = this.host.match(HOST_REGEX);
-                    if (hostMatch) {
-                        if (this.password) {
-                            resolve(new Transport(`${hostMatch[1]}://${this.username}:${this.password}@${hostMatch[2]}`, this.perMessageDeflateOptions));
-                        } else {
-                            resolve(new Transport(`${hostMatch[1]}://${this.username}@${hostMatch[2]}`, this.perMessageDeflateOptions));
-                        }
-                    } else {
-                        throw new Error(`Invalid host: ${this.host}`);
-                    }
-                } else {
-                    resolve(new Transport(this.host, this.perMessageDeflateOptions));
-                }
+                resolve(new Transport(this.host, { token: this.token, perMessageDeflateOptions: this.perMessageDeflateOptions }));
             } catch (error) {
                 // Throw error connecting?
                 reject(new Error(`Could not connect to host: ${error}`));
