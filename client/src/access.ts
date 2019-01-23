@@ -55,4 +55,8 @@ export class UniversalWebSocket extends EventEmitter {
     public close(code: StatusCode = StatusCode.Normal_Closure, reason?: string) {
         return this.session.close(code, reason);
     }
+
+    public open() {
+        return this.session.open();
+    }
 }

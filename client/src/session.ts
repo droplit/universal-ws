@@ -5,8 +5,14 @@ import { PerMessageDeflateOptions } from 'ws';
 
 export { StatusCode } from './transport';
 
+enum ReservedPacketTypes {
+    Heartbeat = 'hb',
+    HeartbeatRequest = 'hbr',
+    NegotiateSettings = 'ns'
+}
+
 export interface StandardPacket {
-    t?: 'hb' | 'hbr' | 'ns' | string;
+    t?: ReservedPacketTypes | string;
     m: string;
     d: any;
     r?: boolean | string;
@@ -57,7 +63,7 @@ export class Session extends EventEmitter {
     private transport?: Transport;
     private heartbeatPolling!: NodeJS.Timer;
     private expires?: NodeJS.Timer;
-    private waiting: (() => void)[] = [];
+    private waiting?: (() => void)[] = [];
     private rpcTransactions: {
         [transactionId: string]: {
             timer: any;
@@ -98,8 +104,9 @@ export class Session extends EventEmitter {
         if (parameters && parameters.length) this.parameters = parameters;
 
         this.connectOperation = retry.operation(this.retryOptions);
-
-        this.retryConnect();
+        if (this.autoConnect) {
+            this.connect();
+        }
     }
 
     private changeState(state: State) {
@@ -107,53 +114,49 @@ export class Session extends EventEmitter {
         this.emit('state', state);
     }
 
-    private retryConnect() {
+    private connect() {
         this.changeState(State.connecting);
+        this.connectOperation.reset();
         this.connectOperation.attempt((currentAttempt: number) => {
-            this.restart().catch((error) => {
-                if (this.connectOperation.retry(error)) {
-                    return;
-                }
+            this._connect().then((error) => {
+                if (error)
+                    this.connectOperation.retry(error);
+            }).catch((error) => {
+                this.emit('error', error);
             });
         });
     }
 
-    private restart() {
-        return new Promise((resolve, reject) => {
+    private _connect() {
+        let promiseComplete: boolean = false;
+        return new Promise<Error | undefined>((resolve, reject) => {
             const connectionTimeout = setTimeout(() => {
-                return reject(new Error('Connection timed out.'));
+                return resolve(new Error('Connection timed out.'));
             }, this.connectionTimeout * 1000);
-            this.connect().then((transport) => {
-                this.transport = transport;
-                clearTimeout(connectionTimeout);
-                return;
-            }).then(() => {
-                if (!this.transport) return reject(new Error('Failed to connect to host'));
-                this.transport.on('open', (data: any) => {
-                    this.connectionReady();
-                });
-                this.transport.on('message', (data: any) => {
-                    this.handleMessage(data);
-                });
-                this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
-                    this.handleClose(data);
-                });
-                this.transport.on('error', (data: any) => {
-                    this.handleError(data);
-                });
-                resolve();
-            }).catch(reject);
-        });
-    }
 
-    private connect() {
-        return new Promise<Transport>((resolve, reject) => {
-            try {
-                resolve(new Transport(this.host, { parameters: this.parameters, perMessageDeflateOptions: this.perMessageDeflateOptions }));
-            } catch (error) {
-                // Throw error connecting?
-                reject(new Error(`Could not connect to host: ${error}`));
-            }
+            this.transport = new Transport(this.host, { parameters: this.parameters, perMessageDeflateOptions: this.perMessageDeflateOptions });
+
+            this.transport.on('message', (data: any) => {
+                this.handleMessage(data);
+            });
+            this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
+                console.log('CLOSE', data);
+                const closeResult = this.handleClose(data);
+                if (!promiseComplete) {
+                    promiseComplete = true;
+                    resolve(closeResult);
+                }
+            });
+            this.transport.on('error', (data: any) => {
+                console.log('ERROR', data);
+                this.handleError(data);
+            });
+            this.transport.on('open', (data: any) => {
+                promiseComplete = true;
+                clearTimeout(connectionTimeout);
+                resolve();
+                this.connectionReady();
+            });
         });
     }
 
@@ -201,11 +204,11 @@ export class Session extends EventEmitter {
             // Node 10.2.0: this.expires.refresh();
             clearTimeout(this.expires);
             this.expires = setTimeout(() => {
-                this.onConnectionActive();
+                this.onConnectionInactive();
             }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
         } else {
             this.expires = setTimeout(() => {
-                this.onConnectionActive();
+                this.onConnectionInactive();
             }, this.heatbeatInterval * (typeof this.heartbeatModeTimeoutMultiplier === 'number' ? this.heartbeatModeTimeoutMultiplier : this.heartbeatModeTimeoutMultiplier()) * 1000);
         }
     }
@@ -221,9 +224,9 @@ export class Session extends EventEmitter {
             }
         } else if (packet.t) { // Handle Heartbeat & Acknowledgement
             switch (packet.t) {
-                case 'hb': // Server responds to client's heartbeat request
+                case ReservedPacketTypes.Heartbeat: // Server responds to client's heartbeat request
                     return PacketType.Heartbeat;
-                case 'ns': // Server responds to client's negotiate settings
+                case ReservedPacketTypes.NegotiateSettings: // Server responds to client's negotiate settings
                     return PacketType.NegotiateSettings;
                 default: // Server acknowledges a response from the client
                     return PacketType.Acknowledgement;
@@ -234,28 +237,32 @@ export class Session extends EventEmitter {
     }
 
     private handleClose(data: { code: StatusCode, reason: string }) {
-        this.transport = undefined; // or delete Transport?
-        if (this.state === State.open) {
-            this.changeState(State.closing);
-            this.stopHeartbeat();
-            Object.keys(this.rpcTransactions).forEach((transactionId) => {
-                this.rpcTransactions[transactionId].callback(undefined, 'Connection closed');
-            });
-            this.emit('disconnected', data.code, data.reason);
-            switch (data.code) {
-                case 1008:
-                    // Do not reconnect, failed to authenticate
-                    break;
-                default:
-                    this.retryConnect(); // If close was not expected or on client terms, retry connecting
-                    break;
-            }
+        this.transport = undefined;
+        // Callback all existing rpc's with an error
+        Object.keys(this.rpcTransactions).forEach((transactionId) => {
+            this.rpcTransactions[transactionId].callback(undefined, 'Connection closed');
+        });
+
+        this.onConnectionInactive({ code: data.code, reason: data.reason });
+        switch (data.code) {
+            case 1006:
+                return new Error('Connection was closed abnormally. Possibly server unreachable');
+            case StatusCode.Message_Error:
+                // Do not reconnect, failed to authenticate
+                return;
+            case StatusCode.Unexpected_Error:
+                // Do not reconnect, unknown server error
+                return;
+            case undefined:
+                // Code not recieved
+                return new Error('Could not connect. No code recieved.');
+            default:
+                return new Error(`Could not connect. Unhandled code: ${data.code}`);
         }
     }
 
     private handleError(data: any) {
         this.emit('error', data);
-        this.onConnectionInactive();
     }
 
     private handleMessage(message: string) {
@@ -298,18 +305,21 @@ export class Session extends EventEmitter {
         });
     }
 
+    // Called whenever connection is active
     private onConnectionActive() {
         if (this.state === State.open) {
             this.resetTimeout();
         }
     }
 
+    // Called when the connection is considered inactive
     private onConnectionInactive(data?: { code: StatusCode, reason: string }) {
         this.changeState(State.closing);
         this.stopHeartbeat();
-        data ? this.emit('disconnected', data.code, data.reason) : this.emit('disconnected');
-        if (this.autoConnect) {
-            this.retryConnect();
+        if (data) {
+            this.emit('disconnected', data.code, data.reason)
+        } else {
+            this.emit('disconnected');
         }
     }
 
@@ -381,14 +391,14 @@ export class Session extends EventEmitter {
     }
 
     private sendHeartbeat() {
-        if (this.transport) this.transport.send(JSON.stringify({ t: 'hb' }));
+        if (this.transport) this.transport.send(JSON.stringify({ t: ReservedPacketTypes.Heartbeat }));
     }
 
     private requestHeartbeat() {
-        if (this.transport) this.transport.send(JSON.stringify({ t: 'hbr' }));
+        if (this.transport) this.transport.send(JSON.stringify({ t: ReservedPacketTypes.HeartbeatRequest }));
     }
 
-    private messageIdSeed = 0;
+    private messageIdSeed = 0; // rotating id for messages
 
     private getNextMessageId() {
         if (this.messageIdSeed === Number.MAX_SAFE_INTEGER) this.messageIdSeed = 0; // Reset to 0
@@ -398,7 +408,7 @@ export class Session extends EventEmitter {
     public negotiate(settings: { heartbeatMode?: HeartbeatMode, heartbeatInterval?: number }) {
         return new Promise<{ approve: boolean, supportedOptions?: SupportedOptions }>((resolve, reject) => {
             const packet: Partial<StandardPacket> = {
-                t: 'ns',
+                t: ReservedPacketTypes.NegotiateSettings,
                 d: settings
             };
             this.awaitReady(() => {
@@ -501,4 +511,12 @@ export class Session extends EventEmitter {
         });
     }
 
+    public open() {
+        if (this.state == State.closed) {
+            this.connect();
+            return;
+        } else {
+            return new Error(`Cannot open. Current state is: ${this.state}`)
+        }
+    }
 }
