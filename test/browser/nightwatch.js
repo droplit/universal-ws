@@ -10,7 +10,7 @@ const server = app.listen(port, () => console.log(`Running test server on port $
 
 const chalk = require('chalk');
 const { spawn } = require('child_process');
-const child = spawn('mocha', [path.resolve(__dirname, './server.js')], { 'stdio': 'pipe' });
+const child = spawn('mocha', [path.resolve(__dirname, './server.js')], { 'stdio': 'pipe', shell: true  });
 
 child.stdout.on('data', (data) => {
     console.log(chalk.yellow(data));
