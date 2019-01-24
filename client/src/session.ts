@@ -128,7 +128,7 @@ export class Session extends EventEmitter {
     }
 
     private _connect() {
-        let promiseComplete: boolean = false;
+        let promiseComplete = false;
         return new Promise<Error | undefined>((resolve, reject) => {
             const connectionTimeout = setTimeout(() => {
                 return resolve(new Error('Connection timed out.'));
@@ -317,7 +317,7 @@ export class Session extends EventEmitter {
         this.changeState(State.closing);
         this.stopHeartbeat();
         if (data) {
-            this.emit('disconnected', data.code, data.reason)
+            this.emit('disconnected', data.code, data.reason);
         } else {
             this.emit('disconnected');
         }
@@ -512,11 +512,11 @@ export class Session extends EventEmitter {
     }
 
     public open() {
-        if (this.state == State.closed) {
+        if (this.state === State.closed) {
             this.connect();
             return;
         } else {
-            return new Error(`Cannot open. Current state is: ${this.state}`)
+            return new Error(`Cannot open. Current state is: ${this.state}`);
         }
     }
 }

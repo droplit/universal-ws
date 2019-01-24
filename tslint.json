@@ -24,7 +24,6 @@
             "ignore-params"
         ],
         "no-internal-module": true,
-        "no-trailing-whitespace": true,
         "no-unnecessary-initializer": true,
         "no-var-keyword": true,
         "object-literal-key-quotes": [
