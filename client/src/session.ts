@@ -116,7 +116,7 @@ export class Session extends EventEmitter {
     private resetAndAttemptConnectOperation() {
         if (this.connectOperation) {
             this.connectOperation.stop();
-        this.connectOperation.reset();
+            this.connectOperation.reset();
         }
         this.connectOperation = retry.operation(this.retryOptions);
         this.connectOperation.attempt((currentAttempt: number) => {
@@ -124,17 +124,17 @@ export class Session extends EventEmitter {
         }, {
             timeout: this.connectionTimeout * 1000, cb: () => {
                 if (this.connectOperation) this.connectOperation.retry(new Error('Connection timed out.'));
-    }
+            }
         } as any);
     }
 
     private connect() {
-            this.transport = new Transport(this.host, { parameters: this.parameters, perMessageDeflateOptions: this.perMessageDeflateOptions });
-            this.transport.on('message', (data: any) => {
-                this.handleMessage(data);
-            });
-            this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
-                console.log('CLOSE', data);
+        this.transport = new Transport(this.host, { parameters: this.parameters, perMessageDeflateOptions: this.perMessageDeflateOptions });
+        this.transport.on('message', (data: any) => {
+            this.handleMessage(data);
+        });
+        this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
+            console.log('CLOSE', data);
             const closeError = this.resolveErrorFromCloseEvent(data);
             if (this.connectOperation) {
                 if (closeError) this.connectOperation.retry(closeError);
@@ -142,17 +142,17 @@ export class Session extends EventEmitter {
             } else {
                 if (closeError) this.resetAndAttemptConnectOperation();
                 else { } // Do nothing
-                }
+            }
             this.handleClose(data);
-            });
+        });
 
-            this.transport.on('error', (data: any) => {
-                this.handleError(data);
-            });
-            this.transport.on('open', (data: any) => {
+        this.transport.on('error', (data: any) => {
+            this.handleError(data);
+        });
+        this.transport.on('open', (data: any) => {
             delete this.connectOperation;
-                this.connectionReady();
-            });
+            this.connectionReady();
+        });
     }
 
     private connectionReady() {
@@ -250,7 +250,9 @@ export class Session extends EventEmitter {
                 return;
             case StatusCode.Protocol_Error:
                 return;
-            case 1006:
+            case StatusCode.No_Status_Code_Present:
+                return;
+            case StatusCode.Invalid_Data:
                 return new Error('Connection was closed abnormally. Possibly server unreachable');
             case StatusCode.Message_Error:
                 // Do not reconnect, failed to authenticate

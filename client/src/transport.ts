@@ -18,7 +18,9 @@ export enum StatusCode {
     Going_Away,
     Protocol_Error,
     Unexpected_Data,
-    Invalid_Data = 1007,
+    Reserved_For_Future,
+    No_Status_Code_Present,
+    Invalid_Data,
     Message_Error,
     Message_Too_Large,
     Unexpected_Error = 1011
