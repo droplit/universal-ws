@@ -1,6 +1,6 @@
 {
     "name": "universal-ws-server",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "description": "The server for universal-ws.",
     "main": "dist/library.js",
     "types": "dist/library.d.js",

@@ -161,7 +161,7 @@ export class Client<Context = any> extends EventEmitter {
     }
 
     public close(code: StatusCode, message?: string) {
-        this._connection.close(code, message);
+        Transport.close(this._connection, code, message);
     }
 }
 
@@ -511,7 +511,7 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     public close(client: Client, code: StatusCode, message?: string) {
-        this.transport.close(client.connection, code, message);
+        Transport.close(client.connection, code, message);
     }
 
 }
