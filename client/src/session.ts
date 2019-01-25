@@ -57,6 +57,7 @@ export interface ConnectionOptions {
     autoConnect?: boolean;
     perMessageDeflateOptions?: PerMessageDeflateOptions;
     retryOptions?: retry.OperationOptions;
+    retryConnectionStatusCodes?: number[];
 }
 
 export class Session extends EventEmitter {
@@ -77,6 +78,7 @@ export class Session extends EventEmitter {
     private autoConnect = true;
     private perMessageDeflateOptions?: PerMessageDeflateOptions;
     private retryOptions: retry.OperationOptions;
+    private retryConnectionStatusCodes: number[] = [];
     private connectOperation?: retry.RetryOperation;
 
     public heatbeatInterval = 1;
@@ -94,6 +96,7 @@ export class Session extends EventEmitter {
         if (options.heartbeatModeTimeoutMultiplier) this.heartbeatModeTimeoutMultiplier = options.heartbeatModeTimeoutMultiplier;
         if (options.autoConnect) this.autoConnect = options.autoConnect;
         if (options.perMessageDeflateOptions) this.perMessageDeflateOptions = options.perMessageDeflateOptions;
+        if (options.retryConnectionStatusCodes) this.retryConnectionStatusCodes = options.retryConnectionStatusCodes;
         this.retryOptions = options.retryOptions ? options.retryOptions : {
             factor: 1.5,
             minTimeout: .5 * 1000,
@@ -245,26 +248,25 @@ export class Session extends EventEmitter {
     private resolveErrorFromCloseEvent(data: { code: StatusCode, reason: string }) {
         switch (data.code) {
             case StatusCode.Normal_Closure:
-                return;
             case StatusCode.Going_Away:
-                return;
             case StatusCode.Protocol_Error:
-                return;
             case StatusCode.No_Status_Code_Present:
                 return;
             case StatusCode.Invalid_Data:
+                // Retry on 1006
                 return new Error('Connection was closed abnormally. Possibly server unreachable');
             case StatusCode.Message_Error:
-                // Do not reconnect, failed to authenticate
-                return;
             case StatusCode.Unexpected_Error:
                 // Do not reconnect, unknown server error
                 return;
             case undefined:
                 // Code not recieved
-                return new Error('Could not connect. No code recieved.');
+                this.handleError(new Error(`No status code recieved on server close: ${data.code}`));
+                return;
             default:
-                return new Error(`Could not connect. Unhandled code: ${data.code}`);
+                if (this.retryConnectionStatusCodes.includes(data.code)) return new Error(`Retrying connection on custom status code: ${data.code}`);
+                this.handleError(new Error(`Unknown status code recieved on server close: ${data.code}`));
+                return;
         }
     }
 

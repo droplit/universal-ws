@@ -1,6 +1,6 @@
 {
     "name": "universal-ws",
-    "version": "0.2.4",
+    "version": "0.2.5",
     "description": "A universal websocket client.",
     "engines": {
         "node": ">=4.2.0"
