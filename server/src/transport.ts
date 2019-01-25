@@ -49,7 +49,7 @@ export class Transport extends EventEmitter {
         });
     }
 
-    public static close(connection: WebSocket, code: StatusCode, message?: string) {
+    public static close(connection: WebSocket, code: StatusCode | number, message?: string) {
         if (message !== undefined) {
             // message must be a string if specified, otherwise the client will not properly recieve the close event 
             return connection.close(code, message.toString());

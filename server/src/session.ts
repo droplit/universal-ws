@@ -510,7 +510,7 @@ export class Session<Context = any> extends EventEmitter {
         });
     }
 
-    public close(client: Client, code: StatusCode, message?: string) {
+    public close(client: Client, code: StatusCode | number, message?: string) {
         Transport.close(client.connection, code, message);
     }
 

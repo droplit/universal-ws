@@ -44,7 +44,7 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
         return this.session.request(client, message, data);
     }
 
-    public close(client: Client<Context>, code: StatusCode, reason: string) {
+    public close(client: Client<Context>, code: StatusCode | number, reason: string) {
         return this.session.close(client, code, reason);
     }
 
