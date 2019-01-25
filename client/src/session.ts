@@ -508,7 +508,7 @@ export class Session extends EventEmitter {
         });
     }
 
-    public close(code?: StatusCode, reason?: string) {
+    public close(code?: StatusCode | number, reason?: string) {
         this.changeState(State.closing);
         if (this.transport) this.transport.close(code, reason);
 

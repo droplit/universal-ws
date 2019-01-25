@@ -19,7 +19,7 @@ export class UniversalWebSocket extends EventEmitter {
         this.session.on('connected', () => {
             this.emit('connected');
         });
-        this.session.on('disconnected', (code?: StatusCode, reason?: string) => {
+        this.session.on('disconnected', (code?: StatusCode | number, reason?: string) => {
             this.emit('close', code, reason);
         });
         this.session.on('message', (message: string, data: any) => {
