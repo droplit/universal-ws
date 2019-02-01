@@ -21,7 +21,6 @@ Attributes:
 
 As a client attempts to connect to the server, the server has the option to authenticate the client to establish the connection. Once connected, the server may send messages/data and make requests to the client. The client may also do the same with the server. The server will handle these requests and also check if the client successfully received the response. Both the server and the client may close the connection at any time.
 
-Note: During authentication process, the client may operate as usual to exchange data with the server such as with responding to requests from the server to provide details.
 
 ## Terminology
 
@@ -63,37 +62,40 @@ WebSocketServer.on('connected', (connection) => {
 
 ### Authenticating
 
+In this example the client is created with two parameters, `username` and `password`;
+
 ```js
 import * as http from 'http';
 import { UniversalWebSocketServer, Options, Context, StatusCode } from 'universal-ws-server';
 
-interface ClientContext {
-  identities: string[];
+enum CustomWebsocketStatusCodes {
+    FailedToAuthenticate = 4000
 }
 
 const httpServer = http.createServer();
-const WebSocketServer = new UniversalWebSocketServer<ClientContext>(httpServer);
+const WebSocketServer = new UniversalWebSocketServer(httpServer);
 
-WebSocketServer.setAuthenticator((connection) => {
-  WebSocketServer.sendMessage(connection, 'Who are you and how did you get in here?');
-
-    const authenticationMessageHandlerId = WebSocketServer.onMessage('I am', (connection, data: { identities: string[] }, context) => {
-        if (data.identities && data.identities.length) {
-            if (data.identities.some(identity => identity === 'locksmith')) {
-                return Promise.resolve(true);
+const connectedClients = [];
+WebSocketServer.on('connected', client => {
+    if (!client.parameters && client.parameters.length == 2) return client.close(CustomWebsocketStatusCodes.FailedToAuthenticate, 'Missing required parameters');
+        const [username, password] = client.parameters;
+        authenticateToken(username, password).then((authenticated: boolean) => {
+            if (authenticated) {
+                connectedClients.push(client);
             } else {
-                return Promise.resolve(false);
+                client.close(CustomWebsocketStatusCodes.FailedToAuthenticate, 'Invalid credentials');
             }
-        } else {
-            return Promise.resolve(false);
-        }
-    });
+        }).catch((error: string) => {
+            client.close(CustomWebsocketStatusCodes.FailedToAuthenticate, error);
+        });
 });
 
-const connectedHandlerId = WebSocketServer.on('connected', (connection: WsContext) => {
-    console.log('Successfully connected to a client!');
-});
+function authenticate(username:string, password: string) {
+    return new Promise(...)
+}
 ```
+
+
 
 ### Client connects and disconnects
 
