@@ -40,15 +40,15 @@ export class UniversalWebSocket extends EventEmitter {
         return this.session.negotiate(settings);
     }
 
-    public send(message: string, data: any) {
+    public send(message: string, data?: any) {
         this.session.send(message, data);
     }
 
-    public sendWithAck(message: string, data: any) {
+    public sendWithAck(message: string, data?: any) {
         return this.session.sendWithAck(message, data);
     }
 
-    public request(message: string, data: any) {
+    public request(message: string, data?: any) {
         return this.session.request(message, data);
     }
 
