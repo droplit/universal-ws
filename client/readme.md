@@ -9,12 +9,13 @@ An isomorphic transport layer library for both node and browsers. Built on [ws](
 
 ### Attributes
 
-In addition to standard websocket features, `universal-ws` provides:
+In addition to standard websocket features, `universal-ws` will:
 
-* Send and receive messages and data.
+* Send and receive messages with data and optionally expect aknowledgement from the server.
 * Make and handle request/response like operations to the server.
-* Configurable authentication.
-* Periodic heartbeats check if the client is connected.
+* Authenticate when connecting to the server.
+* Send and receive periodic heartbeats to check if the client is connected.
+* Reconnect automatically if the client is disconnected unexpectedly.
 * Add or remove individual handlers for when a connection is established or closed and when receiving messages or requests.
 
 ## Theory of Operation
@@ -25,13 +26,13 @@ As a client attempts to connect to the server, the server has the option to auth
 
 **Message** - Any string sent and received. May include additional data.
 
-**Request** - A message that expects a response with data.
+**Request** - A message (with optional data) that expects a response with data.
 
 **Response** - Data sent back when a request is made.
 
-**Acknowledgement** - Message sent back when the response was received.
+**Acknowledgement** - Message sent back to confirm that the response was received.
 
-**Heartbeat** - Message sent periodically to check connection status.
+**Heartbeat** - Message sent periodically to check the connection status.
 
 ## Getting Started
 
@@ -40,6 +41,7 @@ As a client attempts to connect to the server, the server has the option to auth
 ```shell
 npm install universal-ws
 ```
+
 ### Client Setup
 
 ```js
