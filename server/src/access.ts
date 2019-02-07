@@ -24,9 +24,6 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
         this.session.on('message', (client: Client<Context>, message, data) => {
             this.emit(message, client, data);
         });
-        this.session.on('message', (client: Client<Context>, message, data) => {
-            this.emit(message, client, data);
-        });
         this.session.on('request', (client: Client<Context>, message, data, callback: (data: any, ack?: boolean) => Promise<void>) => {
             this.emit(message, client, data, callback);
         });
