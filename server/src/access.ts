@@ -29,15 +29,15 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
         });
     }
 
-    public send(client: Client<Context>, message: string, data: any) {
+    public send(client: Client<Context>, message: string, data?: any) {
         this.session.send(client, message, data);
     }
 
-    public sendWithAck(client: Client<Context>, message: string, data: any) {
+    public sendWithAck(client: Client<Context>, message: string, data?: any) {
         return this.session.sendWithAck(client, message, data);
     }
 
-    public request(client: Client<Context>, message: string, data: any) {
+    public request(client: Client<Context>, message: string, data?: any) {
         return this.session.request(client, message, data);
     }
 

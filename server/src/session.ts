@@ -160,7 +160,7 @@ export class Client<Context = any> extends EventEmitter {
         });
     }
 
-    public close(code: StatusCode| number, message?: string) {
+    public close(code: StatusCode | number, message?: string) {
         Transport.close(this._connection, code, message);
     }
 }

@@ -369,7 +369,7 @@ export class Session extends EventEmitter {
                         timer: setTimeout(() => {
                             // Timed out in acknowledging response
                             this.rpcTransactions[acknowledgementId].callback(undefined, 'Acknowledgement timed out');
-                        }, this.responseTimeout)
+                        }, this.responseTimeout * 1000)
                     };
                     if (this.transport) this.transport.send(JSON.stringify(response));
                 });
@@ -431,7 +431,7 @@ export class Session extends EventEmitter {
                     },
                     timer: setTimeout(() => {
                         this.rpcTransactions[negotiationId].callback(undefined, new Error('Negotiation timed out.'));
-                    }, this.responseTimeout)
+                    }, this.responseTimeout * 1000)
                 };
                 if (this.transport) this.transport.send(JSON.stringify(packet));
             });
@@ -461,6 +461,7 @@ export class Session extends EventEmitter {
             }
             this.awaitReady(() => {
                 const acknowledgementId: string = this.getNextMessageId().toString();
+                packet.i = acknowledgementId;
                 this.rpcTransactions[acknowledgementId] = {
                     callback: (response: any, error: any) => {
                         // Clear and delete rpc
@@ -470,7 +471,7 @@ export class Session extends EventEmitter {
                     },
                     timer: setTimeout(() => {
                         this.rpcTransactions[acknowledgementId].callback(undefined, new Error('Acknowledgement timed out.'));
-                    }, this.responseTimeout)
+                    }, this.responseTimeout * 1000)
                 };
 
                 if (this.transport) this.transport.send(JSON.stringify(packet));
@@ -496,12 +497,12 @@ export class Session extends EventEmitter {
                             // Clear and delete rpc
                             clearTimeout(this.rpcTransactions[requestId].timer);
                             delete this.rpcTransactions[requestId];
-                            error ? reject(error) : resolve();
+                            error ? reject(error) : resolve(response);
                         },
                         timer: setTimeout(() => {
                             // Timed out in acknowledging response
                             this.rpcTransactions[requestId].callback(undefined, new Error('Response timed out.'));
-                        }, this.responseTimeout)
+                        }, this.responseTimeout * 1000)
                     };
                 }
             });
