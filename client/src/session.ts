@@ -137,7 +137,6 @@ export class Session extends EventEmitter {
             this.handleMessage(data);
         });
         this.transport.on('close', (data: { code: StatusCode, reason: string }) => {
-            console.log('CLOSE', data);
             const closeError = this.resolveErrorFromCloseEvent(data);
             if (this.connectOperation) {
                 if (closeError) this.connectOperation.retry(closeError);

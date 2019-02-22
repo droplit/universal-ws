@@ -16,7 +16,7 @@ describe('Universal WS Server', function () {
     const clients: Client[] = [];
     let authenticatedHttpServer: Server;
     let authenticatedUws: UniversalWebSocketServer;
-    const authenticatedClients: Client[] = [];
+    // const authenticatedClients: Client[] = [];
 
     it(`Initialize the server with port ${PORT}`, function (done) {
         httpServer = createServer();
@@ -50,20 +50,20 @@ describe('Universal WS Server', function () {
         done();
     });
 
-    it(`Handle a new authenticated client connecting`, function (done) {
-        authenticatedUws.on('connected', (client: Client) => {
-            expect(client).to.exist;
-            const [username, password] = client.parameters || [undefined, undefined];
-            console.log(`Client ${username} connected. Their password is ${password}`);
-            expect(client.parameters).to.exist;
-            expect(client.parameters).length.to.be.greaterThan(2);
-            expect(username).to.exist;
-            expect(username).to.equal('Boats');
-            expect(password).to.exist;
-            expect(password).to.equal('USS-History-Supreme');
-            authenticatedClients.push(client);
-            done();
-        });
-    });
+    // it(`Handle a new authenticated client connecting`, function (done) {
+    //     authenticatedUws.on('connected', (client: Client) => {
+    //         expect(client).to.exist;
+    //         const [username, password] = client.parameters || [undefined, undefined];
+    //         console.log(`Client ${username} connected. Their password is ${password}`);
+    //         expect(client.parameters).to.exist;
+    //         expect(client.parameters).length.to.be.greaterThan(2);
+    //         expect(username).to.exist;
+    //         expect(username).to.equal('Boats');
+    //         expect(password).to.exist;
+    //         expect(password).to.equal('USS-History-Supreme');
+    //         authenticatedClients.push(client);
+    //         done();
+    //     });
+    // });
 
 });

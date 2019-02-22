@@ -30,6 +30,7 @@ export class UniversalWebSocket extends EventEmitter {
         });
         this.session.on('state', (state: State) => {
             this.state = state;
+            this.emit('state', this.state);
         });
         this.session.on('error', (error: any) => {
             this.emit('error', error);

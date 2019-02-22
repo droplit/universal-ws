@@ -278,105 +278,105 @@ describe('WebSockets', function () {
 
         });
 
-        // it(`Client sends a message which the Server's Client receives and acknowledges`, function (done) {
-        //     const message = `Or UWS Servers' client instances can acknowledge the message`;
-        //     client.sendWithAck(message).then(() => {
-        //         done();
-        //     }).catch((error) => {
-        //         expect(error, 'Client acknowledgement should not fail').to.not.exist;
+        it(`Client sends a message which the Server's Client receives and acknowledges`, function (done) {
+            const message = `Or UWS Servers' client instances can acknowledge the message`;
+            client.sendWithAck(message).then(() => {
+                done();
+            }).catch((error) => {
+                expect(error, 'Client acknowledgement should not fail').to.not.exist;
 
-        //         done();
-        //     });
+                done();
+            });
 
-        //     server.on('connected', (sClient: Client<BasicContext>) => {
-        //         expect(sClient, `UWS Server's client exists`).to.exist;
+            server.on('connected', (sClient: Client<BasicContext>) => {
+                expect(sClient, `UWS Server's client exists`).to.exist;
 
-        //         sClient.on(`#${message}`, (data?: any) => {
-        //             expect(data, `Client did not send data`).to.not.exist;
+                sClient.on(`#${message}`, (data?: any) => {
+                    expect(data, `Client did not send data`).to.not.exist;
 
-        //             // Clean up listeners
-        //             server.removeAllListeners('connected');
-        //             expect(sClient.listeners(`#${message}`).length, `UWS Server's client has 1 "#${message}" listener`).to.equal(1);
-        //             sClient.removeAllListeners(`#${message}`);
-        //             expect(sClient.listeners(`#${message}`).length, `UWS Server's client successfully removed "#${message}" listener(s)`).to.equal(0);
-        //         });
-        //     });
-        // });
+                    // Clean up listeners
+                    server.removeAllListeners('connected');
+                    expect(sClient.listeners(`#${message}`).length, `UWS Server's client has 1 "#${message}" listener`).to.equal(1);
+                    sClient.removeAllListeners(`#${message}`);
+                    expect(sClient.listeners(`#${message}`).length, `UWS Server's client successfully removed "#${message}" listener(s)`).to.equal(0);
+                });
+            });
+        });
 
-        // it('Client sends a message with data which the Server receives and acknowledges', function (done) {
-        //     const message = `UWS Clients' sendWithAck are promises that resolve when the server acknowleges`;
-        //     const data: any = { aStringArray: ['', ' ', '  '], aNumber: 5, aBoolean: true };
-        //     client.sendWithAck(message).then(() => {
-        //         done();
-        //     }).catch((error) => {
-        //         expect(error, 'Client acknowledgement should not fail').to.not.exist;
+        it('Client sends a message with data which the Server receives and acknowledges', function (done) {
+            const message = `UWS Clients' sendWithAck are promises that resolve when the server acknowleges`;
+            const data: any = { aStringArray: ['', ' ', '  '], aNumber: 5, aBoolean: true };
+            client.sendWithAck(message, data).then(() => {
+                done();
+            }).catch((error) => {
+                expect(error, 'Client acknowledgement should not fail').to.not.exist;
 
-        //         done();
-        //     });
+                done();
+            });
 
-        //     server.on(`#${message}`, (client: Client<BasicContext>, receivedData?: any) => {
-        //         expect(client, `UWS Server's client exists`).to.exist;
-        //         expect(receivedData, `UWS Server received data`).to.exist;
-        //         expect(Object.keys(receivedData).every((key) => !!data[key]), `UWS Server received data with the same keys`).to.equal(true);
-        //         expect(server.listeners(`#${message}`).length, `UWS Server has 1 "#${message}" listener`).to.equal(1);
-        //         server.removeAllListeners(`#${message}`);
-        //         expect(server.listeners(`#${message}`).length, `UWS Server successfully removed "#${message}" listener(s)`).to.equal(0);
-        //     });
-        // });
+            server.on(`#${message}`, (client: Client<BasicContext>, receivedData?: any) => {
+                expect(client, `UWS Server's client exists`).to.exist;
+                expect(receivedData, `UWS Server received data`).to.exist;
+                expect(Object.keys(receivedData).every((key) => !!data[key]), `UWS Server received data with the same keys`).to.equal(true);
+                expect(server.listeners(`#${message}`).length, `UWS Server has 1 "#${message}" listener`).to.equal(1);
+                server.removeAllListeners(`#${message}`);
+                expect(server.listeners(`#${message}`).length, `UWS Server successfully removed "#${message}" listener(s)`).to.equal(0);
+            });
+        });
 
-        // it(`Client sends a message with data which the Server's Client receives and acknowledges`, function (done) {
-        //     const message = `Or UWS Clients' sendWithAck promise will reject with an Error if the UWS Server fails to acknowledge in time`;
-        //     const data: any = { aStringArray: ['', ' ', '  '], aNumber: 5, aBoolean: true };
-        //     client.sendWithAck(message).then(() => {
-        //         done();
-        //     }).catch((error) => {
-        //         expect(error, 'Client acknowledgement should not fail').to.not.exist;
+        it(`Client sends a message with data which the Server's Client receives and acknowledges`, function (done) {
+            const message = `Or UWS Clients' sendWithAck promise will reject with an Error if the UWS Server fails to acknowledge in time`;
+            const data: any = { aStringArray: ['', ' ', '  '], aNumber: 5, aBoolean: true };
+            client.sendWithAck(message, data).then(() => {
+                done();
+            }).catch((error) => {
+                expect(error, 'Client acknowledgement should not fail').to.not.exist;
 
-        //         done();
-        //     });
+                done();
+            });
 
-        //     server.on('connected', (sClient: Client<BasicContext>) => {
-        //         expect(sClient, `UWS Server's client exists`).to.exist;
+            server.on('connected', (sClient: Client<BasicContext>) => {
+                expect(sClient, `UWS Server's client exists`).to.exist;
 
-        //         sClient.on(`#${message}`, (receivedData?: any) => {
-        //             expect(receivedData, `UWS Server received data`).to.exist;
-        //             expect(Object.keys(receivedData).every((key) => !!data[key]), `UWS Server received data with the same keys`).to.equal(true);
+                sClient.on(`#${message}`, (receivedData?: any) => {
+                    expect(receivedData, `UWS Server received data`).to.exist;
+                    expect(Object.keys(receivedData).every((key) => !!data[key]), `UWS Server received data with the same keys`).to.equal(true);
 
-        //             // Clean up listeners
-        //             server.removeAllListeners('connected');
-        //             expect(sClient.listeners(`#${message}`).length, `UWS Server's client has 1 "#${message}" listener`).to.equal(1);
-        //             sClient.removeAllListeners(`#${message}`);
-        //             expect(sClient.listeners(`#${message}`).length, `UWS Server's client successfully removed "#${message}" listener(s)`).to.equal(0);
-        //         });
-        //     });
-        // });
+                    // Clean up listeners
+                    server.removeAllListeners('connected');
+                    expect(sClient.listeners(`#${message}`).length, `UWS Server's client has 1 "#${message}" listener`).to.equal(1);
+                    sClient.removeAllListeners(`#${message}`);
+                    expect(sClient.listeners(`#${message}`).length, `UWS Server's client successfully removed "#${message}" listener(s)`).to.equal(0);
+                });
+            });
+        });
 
-        // it(`Server sends a message which the Client receives and acknowledges`, function (done) {
-        //     const message = `UWS Servers can sendWithAck as well`;
-        //     server.on('connected', (sClient: Client<BasicContext>) => {
-        //         server.sendWithAck(sClient, message).then(() => {
-        //             done();
-        //         }).catch((error) => {
-        //             expect(error, 'Client acknowledgement should not fail').to.not.exist;
+        it(`Server sends a message which the Client receives and acknowledges`, function (done) {
+            const message = `UWS Servers can sendWithAck as well`;
+            server.on('connected', (sClient: Client<BasicContext>) => {
+                server.sendWithAck(sClient, message).then(() => {
+                    done();
+                }).catch((error) => {
+                    expect(error, 'Client acknowledgement should not fail').to.not.exist;
 
-        //             done();
-        //         });
-        //     });
+                    done();
+                });
+            });
 
-        //     client = new UniversalWebSocket(host);
+            client = new UniversalWebSocket(host);
 
-        //     client.on(`#${message}`, (receivedData?: any) => {
-        //         expect(receivedData, `Client received no data from server`).to.not.exist;
+            client.on(`#${message}`, (receivedData?: any) => {
+                expect(receivedData, `Client received no data from server`).to.not.exist;
 
-        //         // Clean up listeners
-        //         expect(client.listeners(`#${message}`).length, `UWS Client has 1 "#${message}" listener`).to.equal(1);
-        //         client.removeAllListeners(`#${message}`);
-        //         expect(client.listeners(`#${message}`).length, `UWS Client successfully removed "#${message}" listener`).to.equal(0);
-        //         expect(server.listeners(`#${message}`).length, `UWS Server has 1 "#${message}" listener`).to.equal(1);
-        //         server.removeAllListeners(`#${message}`);
-        //         expect(server.listeners(`#${message}`).length, `UWS Server successfully removed "#${message}" listener(s)`).to.equal(0);
-        //     });
-        // });
+                // Clean up listeners
+                expect(client.listeners(`#${message}`).length, `UWS Client has 1 "#${message}" listener`).to.equal(1);
+                client.removeAllListeners(`#${message}`);
+                expect(client.listeners(`#${message}`).length, `UWS Client successfully removed "#${message}" listener`).to.equal(0);
+                expect(server.listeners(`#${message}`).length, `UWS Server has 1 "#${message}" listener`).to.equal(1);
+                server.removeAllListeners(`#${message}`);
+                expect(server.listeners(`#${message}`).length, `UWS Server successfully removed "#${message}" listener(s)`).to.equal(0);
+            });
+        });
 
         // it(`Server's client instance sends a message which the Client receives and acknowledges`, function (done) {
         //     const message = `UWS Server's sendWithAck returns with a promise that will resolve when the client acknowledges the message`;
