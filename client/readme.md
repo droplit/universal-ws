@@ -69,9 +69,9 @@ The client can handle the following events:
 
 **@REQUEST** - A request (with optional data) sent from the server, which expects a response via callback.
 
-> Note: To differentiate between **MESSAGE** and **REQUEST** in event names, the prefix `#` and `@` is added to *MESSAGE** and **REQUEST**, respectively.
+> Note: To differentiate between **MESSAGE** and **REQUEST** in event names, `#` and `@` is prefixed to **MESSAGE** and **REQUEST**, respectively.
 
-Example:
+Examples:
 
 ```ts
 uws.on('connected', () => {
@@ -91,9 +91,9 @@ uws.on('error', (error: Error | any) => {
 uws.on('#Yo', (data?: any) => {
     console.log('Yo, got a message about', data);
 });
-uws.on('@Show me your wallet.', (data: any, callback: (data: any, ack?: boolean) => void | Promise<void>) => {
+uws.on('@Show me your wallet.', (data: { amount: number }, callback: (data: any, ack?: boolean) => void | Promise<void>) => {
     const funds = 0;
-    console.log('The server is asking for money, we have', funds, 'out of', data);
+    console.log('The server is asking for money, we have', funds, 'out of', data.amount);
     callback(funds);
 });
 ```
