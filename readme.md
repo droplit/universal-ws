@@ -7,14 +7,13 @@
 <a href="https://droplit.io">
     <img height="70" width="280" src="https://raw.githubusercontent.com/droplit/content/master/createdByDroplitBanner-worqr100x400.png" target="_blank">
 </a>
-# universal-ws
 
 [![NPM](https://nodei.co/npm/universal-ws.png)](https://www.npmjs.com/package/universal-ws)
  [![NPM](https://nodei.co/npm/universal-ws-server.png)](https://www.npmjs.com/package/universal-ws-server)
 
 ![node](https://img.shields.io/github/license/droplit/universal-ws.svg?style=flat-square)
 
-## About
+# universal-ws
 
 An Isomorphic transport layer library for both node and browsers. Built on [ws](https://github.com/websockets/ws) and native browser [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) implementations. 
 
