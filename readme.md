@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/droplit/universal-ws">
-    <img height="400" width="400" src="https://raw.githubusercontent.com/droplit/universal-ws/master/UniversalWSLogo.svg">
+    <img height="400" width="400" src="https://raw.githubusercontent.com/droplit/universal-ws/master/UniversalWSLogo.svg?sanitize=true">
   </a>
 </p>
 
