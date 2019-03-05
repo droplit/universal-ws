@@ -1,3 +1,12 @@
+<p align="center">
+  <a href="https://github.com/droplit/universal-ws">
+    <img height="400" width="400" src="https://raw.githubusercontent.com/droplit/universal-ws/master/UniversalWSLogo.svg">
+  </a>
+</p>
+
+<a href="https://droplit.io">
+    <img height="70" width="280" src="https://raw.githubusercontent.com/droplit/content/master/createdByDroplitBanner-worqr100x400.png" target="_blank">
+</a>
 # universal-ws
 
 [![NPM](https://nodei.co/npm/universal-ws.png)](https://www.npmjs.com/package/universal-ws)
