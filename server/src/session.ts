@@ -424,6 +424,7 @@ export class Session<Context = any> extends EventEmitter {
 
     private handleResponse(client: Client, packet: Partial<StandardPacket>) {
         if (typeof packet.r !== 'string') return;
+        if (!client.connection.rpcTransactions) client.connection.rpcTransactions = {};
         if (client.connection.rpcTransactions[packet.r]) {
             if (packet.t) { // Client expects acknowledgement of response
                 this.transport.send(client.connection, JSON.stringify({ t: packet.t }));
@@ -434,6 +435,7 @@ export class Session<Context = any> extends EventEmitter {
 
     private handleAcknowledgement(client: Client, packet: Partial<StandardPacket>) {
         if (typeof packet.t !== 'string') return;
+        if (!client.connection.rpcTransactions) client.connection.rpcTransactions = {};
         if (client.connection.rpcTransactions[packet.t]) {
             client.connection.rpcTransactions[packet.t].callback(undefined);
         }
