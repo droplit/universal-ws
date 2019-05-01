@@ -478,8 +478,8 @@ export class Session<Context = any> extends EventEmitter {
 
     }
 
-    public request(client: Client, message: string, data: any = {}) {
-        return new Promise((resolve, reject) => {
+    public request<T = any>(client: Client, message: string, data: any = {}) {
+        return new Promise<T>((resolve, reject) => {
             const requestId: string = ObjectId();
             const packet: Partial<StandardPacket> = {
                 m: message,

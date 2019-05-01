@@ -37,8 +37,8 @@ export class UniversalWebSocketServer<Context = any> extends EventEmitter {
         return this.session.sendWithAck(client, message, data);
     }
 
-    public request(client: Client<Context>, message: string, data?: any) {
-        return this.session.request(client, message, data);
+    public request<T>(client: Client<Context>, message: string, data?: any) {
+        return this.session.request<T>(client, message, data);
     }
 
     public close(client: Client<Context>, code: StatusCode | number, reason: string) {

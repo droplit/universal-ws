@@ -49,11 +49,11 @@ export class UniversalWebSocket extends EventEmitter {
         return this.session.sendWithAck(message, data);
     }
 
-    public request(message: string, data?: any) {
-        return this.session.request(message, data);
+    public request<T>(message: string, data?: any) {
+        return this.session.request<T>(message, data);
     }
 
-    public close(code: StatusCode = StatusCode.Normal_Closure, reason?: string) {
+    public close(code: StatusCode = StatusCode.Normal_Closure , reason?: string) {
         return this.session.close(code, reason);
     }
 

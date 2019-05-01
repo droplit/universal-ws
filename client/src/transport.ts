@@ -103,7 +103,8 @@ export class UniversalWs {
     public close(code: number = 1000, reason: string = '') {
         if (!this.ws) return;
         if (isBrowser(this.ws)) {
-            this.ws.close(code, reason);
+            if (this.ws.readyState === this.ws.OPEN)
+                this.ws.close(code, reason);
         } else {
             this.ws.close(code, reason);
         }

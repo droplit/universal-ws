@@ -478,9 +478,9 @@ export class Session extends EventEmitter {
         });
     }
 
-    public request(message: string, data: any = {}) {
-        return new Promise((resolve, reject) => {
-            const requestId = this.getNextMessageId().toString();
+    public request<T = any>(message: string, data: any = {}) {
+        return new Promise<T>((resolve, reject) => {
+            const requestId = this.getNextMessageId();
             const packet = {
                 m: message,
                 d: data,
