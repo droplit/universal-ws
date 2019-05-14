@@ -280,7 +280,7 @@ export class Session extends EventEmitter {
 
         this.awaitReady(() => {
             let packet: StandardPacket;
-
+            
             // parse packet JSON
             try {
                 packet = JSON.parse(message);
@@ -510,6 +510,7 @@ export class Session extends EventEmitter {
 
     public close(code?: StatusCode | number, reason?: string) {
         this.changeState(State.closing);
+        delete this.connectOperation;
         if (this.transport) this.transport.close(code, reason);
 
         // Clean up events

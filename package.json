@@ -30,7 +30,7 @@
         "unit-test": "npm run test-client && npm run test-server",
         "webpack-browser-test": "cd ./test/browser && webpack --config ./webpack.config.js",
         "browser-test": "npm run webpack-browser-test && nightwatch ./test/browser/nightwatch.js",
-        "system-test": "cd test/system && mocha -r ts-node/register -r source-map-support/register **/*.ts",
+        "system-test": "cd test/system && mocha -r ts-node/register -r source-map-support/register **/system.test.ts",
         "watch-client": "cd client && npm run watch",
         "watch-server": "cd server && npm run watch",
         "publish": "cd ./server && npm publish && cd ../client && npm publish"
@@ -43,6 +43,7 @@
         "chai": "^4.1.2",
         "chalk": "^2.4.2",
         "express": "^4.16.4",
+        "get-port": "^5.0.0",
         "mocha": "^5.2.0",
         "rimraf": "^2.6.2",
         "source-map-support": "^0.5.6",
@@ -55,5 +56,8 @@
     "optionalDependencies": {
         "chromedriver": "^2.45.0",
         "nightwatch": "^1.0.18"
+    },
+    "devDependencies": {
+        "http-shutdown": "^1.2.0"
     }
 }
