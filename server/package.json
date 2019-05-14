@@ -1,6 +1,6 @@
 {
     "name": "universal-ws-server",
-    "version": "0.2.6",
+    "version": "0.2.7",
     "description": "The server for universal-ws.",
     "main": "dist/library.js",
     "types": "dist/library.d.js",
@@ -14,6 +14,11 @@
     },
     "license": "MIT",
     "keywords": [
+        "universal-ws",
+        "universal-ws-server",
+        "universal ws",
+        "universal ws server",
+        "ws",
         "websocket",
         "browser",
         "node",
