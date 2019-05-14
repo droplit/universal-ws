@@ -44,6 +44,7 @@
         "chalk": "^2.4.2",
         "express": "^4.16.4",
         "get-port": "^5.0.0",
+        "http-shutdown": "^1.2.0",
         "mocha": "^5.2.0",
         "rimraf": "^2.6.2",
         "source-map-support": "^0.5.6",
@@ -56,8 +57,5 @@
     "optionalDependencies": {
         "chromedriver": "^2.45.0",
         "nightwatch": "^1.0.18"
-    },
-    "devDependencies": {
-        "http-shutdown": "^1.2.0"
     }
 }
