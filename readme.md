@@ -23,7 +23,7 @@ In addition to standard websocket features, `universal-ws` provides:
 
 * Server-to-Client Heartbeat
 * Request-Response bidirectionally
-* Connection authentication handler promise 
+* Connection authentication
 
 ## Getting started
 
