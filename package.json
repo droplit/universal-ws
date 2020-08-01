@@ -16,9 +16,6 @@
         "build-client": "cd client && npm run build",
         "build-server": "cd server && npm run build",
         "clean": "rimraf */dist",
-        "install-client": "cd client && npm i",
-        "install-server": "cd server && npm i",
-        "postinstall": "npm run install-client && npm run install-server",
         "teardown": "rimraf */dist */node_modules",
         "tslint-client": "cd client && npm run tslint",
         "tslint-server": "cd server && npm run tslint",
@@ -57,5 +54,9 @@
     "optionalDependencies": {
         "chromedriver": "^2.45.0",
         "nightwatch": "^1.0.18"
-    }
+    },
+    "workspaces": [
+        "server",
+        "client"
+    ]
 }

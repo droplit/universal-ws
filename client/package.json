@@ -1,6 +1,6 @@
 {
     "name": "universal-ws",
-    "version": "0.2.8",
+    "version": "0.2.9",
     "description": "A universal websocket client.",
     "engines": {
         "node": ">=4.2.0"
@@ -29,19 +29,21 @@
         "server"
     ],
     "scripts": {
-        "build": "npm run tslint && tsc && npm run webpack",
-        "webpack": "webpack --config ./webpack.config.js",
-        "clean": "rimraf ./dist",
-        "prepack": "npm run build",
-        "tslint": "tslint -c ../tslint.json -t stylish 'src/**/*.ts' --force",
-        "test": "mocha -r ts-node/register -r source-map-support/register  src/**/*.spec.ts",
-        "watch": "npm run tslint && tsc --watch --preserveWatchOutput"
+        "build": "yarn run tslint && yarn pnpify tsc -b -v && yarn run webpack",
+        "webpack": "yarn pnpify webpack --config ./webpack.config.js",
+        "clean": "yarn pnpify rimraf ./dist",
+        "prepack": "yarn run build",
+        "tslint": "yarn pnpify tslint -c ../tslint.json -t stylish 'src/**/*.ts' --force",
+        "test": "yarn pnpify mocha -r ts-node/register -r source-map-support/register  src/**/*.spec.ts",
+        "watch": "yarn run tslint && tsc -b -w"
     },
     "devDependencies": {
         "@types/chai": "^4.1.4",
         "@types/mocha": "^5.2.2",
+        "@yarnpkg/pnpify": "^2.0.0-rc.25",
         "chai": "^4.1.2",
         "mocha": "^5.2.0",
+        "pnp-webpack-plugin": "^1.6.4",
         "rimraf": "^2.6.2",
         "source-map-support": "^0.5.6",
         "ts-node": "^7.0.0",
@@ -51,13 +53,13 @@
         "webpack-cli": "^3.1.2"
     },
     "dependencies": {
-        "@types/node": "4.2.0",
         "@types/retry": "^0.12.0",
         "@types/ws": "^5.1.1",
         "bs58": "^4.0.1",
         "retry": "^0.12.0"
     },
     "optionalDependencies": {
+        "@types/node": "4.2.0",
         "ws": "^5.2.0"
     }
 }
