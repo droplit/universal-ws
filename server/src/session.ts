@@ -26,7 +26,7 @@ enum State {
 export interface Options {
     defaultHeartbeatMode?: HeartbeatMode;
     defaultHeartbeatInterval?: number;
-    heartbeatTimeoutMultiplier?: number;
+    heartbeatTimeoutMultiplier?: number | ((client: Client) => number);
     supportedOptions?: SupportedOptions & { perMessageDeflateOptions?: WebSocket.PerMessageDeflateOptions; };
 }
 
@@ -47,7 +47,7 @@ export interface Connection extends WebSocket {
             callback: (response: any, error?: Error) => void;
         }
     };
-    expires: NodeJS.Timer;
+    expires?: NodeJS.Timer;
 }
 
 export interface StandardPacket {
@@ -103,7 +103,7 @@ export class Client<Context = any> extends EventEmitter {
     }
 
     public sendWithAck(message: string, data?: any) {
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             const packet: Partial<StandardPacket> = {
                 m: message
             };
@@ -181,7 +181,7 @@ export class Session<Context = any> extends EventEmitter {
 
     constructor(server: http.Server, options?: Options) {
         super();
-        this.transport = new Transport(server, options && options.supportedOptions && options.supportedOptions.perMessageDeflateOptions ? options.supportedOptions.perMessageDeflateOptions : undefined);
+        this.transport = new Transport(server, options?.supportedOptions?.perMessageDeflateOptions);
 
         // Fill in empty
         if (!options) options = {};
@@ -195,6 +195,8 @@ export class Session<Context = any> extends EventEmitter {
         if (options.supportedOptions.maxHeartbeatInterval) this.supportedOptions.maxHeartbeatInterval = options.supportedOptions.maxHeartbeatInterval;
 
         this.transport.on('connection', (connection: Connection, request: http.IncomingMessage) => {
+            connection.heartbeatTimeoutMultiplier = this.heartbeatTimeoutMultiplier;
+
             const client = new Client(connection);
             this.clients.push(client);
             // Set up connection expiration and start timeout
@@ -366,7 +368,7 @@ export class Session<Context = any> extends EventEmitter {
                 if (settings.heartbeatInterval) {
                     client.connection.heartbeatInterval = settings.heartbeatInterval;
                     // Recalculate connection timeout
-                    clearTimeout(client.connection.expires);
+                    clearTimeout(client.connection.expires!);
                     delete client.connection.expires;
                     this.onConnectionActive(client);
                 }
@@ -397,7 +399,7 @@ export class Session<Context = any> extends EventEmitter {
                 r: packet.r
             };
             if (ack) {
-                return new Promise((resolve, reject) => {
+                return new Promise<void>((resolve, reject) => {
                     const acknowledgementId: string = ObjectId();
                     response.t = acknowledgementId;
                     if (!client.connection.rpcTransactions) client.connection.rpcTransactions = {};
@@ -452,7 +454,7 @@ export class Session<Context = any> extends EventEmitter {
     }
 
     public sendWithAck(client: Client, message: string, data?: any) {
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             const packet: Partial<StandardPacket> = {
                 m: message,
 

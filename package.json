@@ -35,7 +35,7 @@
     "dependencies": {
         "@types/chai": "^4.1.4",
         "@types/mocha": "^5.2.2",
-        "@types/nightwatch": "^0.9.11",
+        "@types/nightwatch": "^1.3.2",
         "@types/node": "^10.1.2",
         "chai": "^4.1.2",
         "chalk": "^2.4.2",
@@ -54,6 +54,9 @@
     "optionalDependencies": {
         "chromedriver": "^2.45.0",
         "nightwatch": "^1.0.18"
+    },
+    "resolutions": {
+        "typescript": "4.1.3"
     },
     "workspaces": [
         "server",

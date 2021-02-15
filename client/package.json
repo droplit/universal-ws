@@ -48,18 +48,18 @@
         "source-map-support": "^0.5.6",
         "ts-node": "^7.0.0",
         "tslint": "^5.10.0",
-        "typescript": "^3.2.2",
+        "typescript": "^4.1.3",
         "webpack": "^4.25.1",
         "webpack-cli": "^3.1.2"
     },
     "dependencies": {
         "@types/retry": "^0.12.0",
-        "@types/ws": "^5.1.1",
+        "@types/ws": "^7.4.0",
         "bs58": "^4.0.1",
         "retry": "^0.12.0"
     },
     "optionalDependencies": {
         "@types/node": "4.2.0",
-        "ws": "^5.2.0"
+        "ws": "^7.4.3"
     }
 }

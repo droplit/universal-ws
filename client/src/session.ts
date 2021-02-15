@@ -354,7 +354,7 @@ export class Session extends EventEmitter {
                 r: JSON.stringify(packet.i)
             };
             if (ack) {
-                return new Promise((resolve, reject) => {
+                return new Promise<void>((resolve, reject) => {
                     const acknowledgementId = this.getNextMessageId().toString();
                     response.t = acknowledgementId;
 
